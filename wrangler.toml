@@ -1,0 +1,15 @@
+name = "kaching-developer-admin"
+main = "worker/index.ts"
+compatibility_date = "2026-11-02"
+workers_dev = true
+
+[[services]]
+binding = "MERCHANT_APP"
+service = "shopline-quantity-breaks"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# Add the ADMIN_DB D1 binding with the database ID emitted by
+# `wrangler d1 create kaching-developer-admin` before the first remote deploy.

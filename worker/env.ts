@@ -3,6 +3,7 @@ type WorkerBindings = {
   MERCHANT_APP: Fetcher;
   ADMIN_INTERNAL_SECRET: string;
   ASSETS: Fetcher;
+  ADMIN_ENVIRONMENT?: string;
   now?: () => number;
 };
 

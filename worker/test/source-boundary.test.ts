@@ -27,7 +27,7 @@ async function applyMigration(): Promise<void> {
   }
 }
 
-async function loggedInFetch(path: string): Promise<Response> {
+async function loggedInFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const store = new AdminStore(env.ADMIN_DB);
   await store.createOwner({ email: 'owner@example.com', password: 'strong-passphrase-123' });
   const login = await worker.fetch(request('/admin-api/v1/auth/login', {
@@ -36,7 +36,7 @@ async function loggedInFetch(path: string): Promise<Response> {
     body: JSON.stringify({ email: 'owner@example.com', password: 'strong-passphrase-123' }),
   }), env, context);
   const cookie = login.headers.get('Set-Cookie')!.split(';')[0];
-  return worker.fetch(request(path, { headers: { Cookie: cookie } }), env, context);
+  return worker.fetch(request(path, { ...init, headers: { ...(init.headers ?? {}), Cookie: cookie } }), env, context);
 }
 
 async function ownerCookie(): Promise<string> {
@@ -48,6 +48,13 @@ async function ownerCookie(): Promise<string> {
     body: JSON.stringify({ email: 'owner@example.com', password: 'strong-passphrase-123' }),
   }), env, context);
   return login.headers.get('Set-Cookie')!.split(';')[0];
+}
+
+async function ownerSession(): Promise<{ cookie: string; csrfToken: string }> {
+  const cookie = await ownerCookie();
+  const response = await worker.fetch(request('/admin-api/v1/auth/me', { headers: { Cookie: cookie } }), env, context);
+  const body = await response.json() as { data: { csrfToken: string } };
+  return { cookie, csrfToken: body.data.csrfToken };
 }
 
 beforeEach(applyMigration);
@@ -130,4 +137,62 @@ it('blocks sensitive responses when their audit write fails', async () => {
 
   expect(response.status).toBe(503);
   await expect(response.json()).resolves.toMatchObject({ error: { code: 'AUDIT_UNAVAILABLE' } });
+});
+
+it('signs a feedback status change, requires CSRF, and audits the Owner action', async () => {
+  const fetch = vi.fn(async (_request: Request) => new Response(JSON.stringify({
+    data: {
+      feedback: {
+        id: 'request-1', status: 'approved', authorLabel: '商家', isMine: false, title: '标题', content: '内容', voteCount: 0,
+        commentCount: 0, voted: false, createdAt: '2026-10-14T01:00:00Z', updatedAt: '2026-10-14T01:00:00Z', canWithdraw: false, comments: [], replies: [],
+      },
+    },
+  })));
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+
+  const forbidden = await loggedInFetch('/admin-api/v1/feedback/request-1/status', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'approved' }),
+  });
+  expect(forbidden.status).toBe(403);
+
+  await applyMigration();
+  const { cookie, csrfToken } = await ownerSession();
+  const success = await worker.fetch(request('/admin-api/v1/feedback/request-1/status', {
+    method: 'PATCH',
+    headers: { Cookie: cookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+    body: JSON.stringify({ status: 'approved' }),
+  }), env, context);
+
+  expect(success.status).toBe(200);
+  const internalRequest = fetch.mock.calls.at(-1)![0] as Request;
+  expect(internalRequest.method).toBe('PATCH');
+  expect(new URL(internalRequest.url).pathname).toBe('/internal/admin/v1/feedback/request-1/status');
+  expect(await internalRequest.json()).toEqual({ status: 'approved' });
+  const audit = await new AdminStore(env.ADMIN_DB).listAudit({});
+  expect(audit.items).toContainEqual(expect.objectContaining({ action: 'feedback.status_changed', result: 'success', targetId: 'request-1' }));
+});
+
+it('projects only approved Owner feedback fields and maps merchant failures to SOURCE_UNAVAILABLE', async () => {
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+  env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({ data: { accessToken: 'secret', items: [] } })) } as unknown as Fetcher;
+
+  const invalid = await loggedInFetch('/admin-api/v1/feedback?limit=25&offset=0');
+  expect(invalid.status).toBe(503);
+
+  await applyMigration();
+  env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
+    data: {
+      total: 1,
+      offset: 0,
+      items: [{
+        id: 'request-1', storeId: 'store-1', handle: 'alpha', isAnonymous: true, title: '标题', excerpt: '内容摘要',
+        status: 'pending', displayStatus: 'pending', hiddenReason: null, voteCount: 0, commentCount: 0,
+        createdAt: '2026-10-14T01:00:00Z', updatedAt: '2026-10-14T01:00:00Z', hasOfficialReply: false, accessToken: 'secret',
+      }],
+    },
+  })) } as unknown as Fetcher;
+  const response = await loggedInFetch('/admin-api/v1/feedback?limit=25&offset=0');
+  expect(response.status).toBe(200);
+  expect(JSON.stringify(await response.json())).not.toContain('secret');
 });

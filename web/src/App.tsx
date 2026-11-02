@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, Package, ShieldCheck, Store as StoreIcon, X } from 'lucide-react';
+import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, Package, ShieldCheck, Store as StoreIcon, X } from 'lucide-react';
 import { api, ApiError, type Admin } from './api';
+import { FeedbackDetailPage, FeedbackPage } from './feedback';
 import { AuditPage, BundlesPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
 
 function Login({ onReady }: { onReady: (admin: Admin) => void }) {
@@ -40,6 +41,7 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
     { to: '/stores', label: 'Stores', icon: StoreIcon },
     { to: '/bundles', label: 'Bundles', icon: Package },
     { to: '/errors', label: 'Errors', icon: Activity },
+    { to: '/feedback', label: '需求与建议', icon: MessageSquareText },
     { to: '/audit', label: 'Audit', icon: ClipboardList },
   ];
   return <div className="shell">
@@ -58,6 +60,8 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
       <Route path="/stores/:storeId" element={<StoreDetailPage admin={admin} />} />
       <Route path="/bundles" element={<BundlesPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
+      <Route path="/feedback" element={<FeedbackPage />} />
+      <Route path="/feedback/:id" element={<FeedbackDetailPage admin={admin} />} />
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/" element={<Navigate to="/overview" replace />} />
       <Route path="*" element={<div className="state-block"><h1>页面不存在</h1><Link to="/overview">返回 Overview</Link></div>} />

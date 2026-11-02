@@ -151,6 +151,39 @@ tbody tr:hover { background: #fafafa; }
 .form-error { margin: 0 0 12px; color: var(--destructive); font-size: 12px; }
 .boot-loading { display: grid; min-height: 100vh; place-items: center; color: var(--muted-foreground); font-size: 13px; }
 .mobile-menu, .menu-scrim { display: none; }
+.feedback-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-bottom: 16px; }
+.feedback-toolbar .search-box { min-width: 230px; }
+.field-inline { display: flex; min-width: 130px; flex-direction: column; gap: 5px; color: var(--muted-foreground); font-size: 11px; }
+.field-inline input, .feedback-toolbar select { height: 36px; border: 1px solid var(--input); border-radius: 6px; background: var(--card); padding: 0 9px; color: var(--foreground); font: inherit; }
+.feedback-toolbar .select-label { display: flex; flex-direction: column; align-items: stretch; gap: 5px; color: var(--muted-foreground); font-size: 11px; }
+.feedback-table td:nth-child(1) { max-width: 330px; }
+.clamp-copy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge.feedback-muted { background: var(--muted); color: var(--muted-foreground); }
+.badge.feedback-success { border-color: #bbf7d0; background: var(--success-muted); color: var(--success); }
+.badge.feedback-info { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.badge.feedback-danger { border-color: #fecaca; background: var(--destructive-muted); color: var(--destructive); }
+.feedback-detail-title { margin-bottom: 16px; }
+.title-status { display: flex; align-items: center; gap: 10px; }
+.feedback-content { margin: 0 0 18px; white-space: pre-wrap; color: var(--foreground); font-size: 13px; line-height: 1.75; }
+.feedback-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.button.destructive { border-color: #fecaca; color: var(--destructive); }
+.button.destructive:hover:not(:disabled) { background: var(--destructive-muted); }
+.feedback-notice { margin: 0 0 16px; border: 1px solid #bbf7d0; border-radius: 6px; background: var(--success-muted); padding: 9px 12px; color: var(--success); font-size: 12px; }
+.feedback-thread { display: flex; flex-direction: column; gap: 10px; }
+.feedback-thread article { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+.feedback-thread article > div { display: flex; align-items: center; gap: 7px; }
+.feedback-thread p { margin: 8px 0; white-space: pre-wrap; color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.feedback-thread small { color: var(--muted-foreground); font-size: 11px; }
+.official-mark, .anonymous-mark, .deleted-mark { border-radius: 4px; padding: 2px 5px; font-size: 10px; font-weight: 600; }
+.official-mark { background: #eff6ff; color: #1d4ed8; }
+.anonymous-mark { background: var(--muted); color: var(--muted-foreground); }
+.deleted-mark { background: var(--destructive-muted); color: var(--destructive); }
+.deleted-comment { background: #fffafa; }
+.comment-delete { position: absolute; top: 8px; right: 8px; }
+.feedback-reply { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.feedback-reply textarea { min-height: 105px; resize: vertical; border: 1px solid var(--input); border-radius: 6px; background: var(--card); padding: 10px; color: var(--foreground); font: inherit; font-size: 13px; line-height: 1.5; }
+.feedback-reply .button { align-self: flex-end; }
+.empty-inline { display: flex; align-items: center; gap: 7px; min-height: 42px; color: var(--muted-foreground); font-size: 12px; }
 
 @media (max-width: 900px) {
   .sidebar { width: 210px; }
@@ -183,6 +216,9 @@ tbody tr:hover { background: #fafafa; }
   .mobile-record small { color: var(--muted-foreground); }
   .detail-grid { grid-template-columns: 1fr; gap: 16px; }
   .toolbar { align-items: stretch; }
+  .feedback-toolbar { align-items: stretch; }
+  .feedback-toolbar .search-box, .field-inline, .feedback-toolbar .select-label { width: 100%; }
+  .feedback-toolbar .button { width: 100%; }
   .search-box { width: 100%; }
   .select-label { justify-content: space-between; }
   .select-label select { flex: 1; }

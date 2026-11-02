@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS admin_owner_lock (
 CREATE TABLE IF NOT EXISTS admin_sessions (
   token_hash TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
-  csrf_token TEXT NOT NULL,
+  csrf_token_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,

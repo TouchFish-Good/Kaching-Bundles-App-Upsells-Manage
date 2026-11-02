@@ -39,8 +39,8 @@ export function OverviewPage({ admin }: { admin: Admin }) {
     <Status {...resource}>{resource.data && <><section className="metric-band" aria-label="关键指标">
       <MetricCell title="已安装店铺" metric={resource.data.installedStoreCount} href="/stores?status=installed" />
       <MetricCell title="有效活动" metric={resource.data.activeBundleCount} href="/bundles" />
-      {admin.role !== 'Viewer' && <MetricCell title="最近 24 小时错误" metric={resource.data.errorCount} href="/errors" />}
-    </section><section className="overview-section"><div className="section-heading"><h2>需要关注</h2><span>按可用数据源更新</span></div><div className="overview-links"><Link to="/stores"><span>商家安装状态</span><ArrowRight size={17} /></Link><Link to="/bundles"><span>Bundle 活动数据</span><ArrowRight size={17} /></Link>{admin.role !== 'Viewer' && <Link to="/errors"><span>应用错误记录</span><ArrowRight size={17} /></Link>}</div></section></>}</Status>
+      <MetricCell title="最近 24 小时错误" metric={resource.data.errorCount} href="/errors" />
+    </section><section className="overview-section"><div className="section-heading"><h2>需要关注</h2><span>按可用数据源更新</span></div><div className="overview-links"><Link to="/stores"><span>商家安装状态</span><ArrowRight size={17} /></Link><Link to="/bundles"><span>Bundle 活动数据</span><ArrowRight size={17} /></Link><Link to="/errors"><span>应用错误记录</span><ArrowRight size={17} /></Link></div></section></>}</Status>
   </>;
 }
 

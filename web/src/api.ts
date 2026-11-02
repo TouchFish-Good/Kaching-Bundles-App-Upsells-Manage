@@ -1,11 +1,10 @@
 import type { Metric } from './state.ts';
 
-export type Role = 'Viewer' | 'Operator' | 'Owner';
+export type Role = 'Owner';
 export type Admin = { id: string; email: string; role: Role; csrfToken: string; environment: string };
 export type Store = { storeId: string; handle: string; scope: string; status: string; installedAt: string; updatedAt: string; installations?: { installedAt: string; uninstalledAt: string | null }[] };
 export type ErrorEvent = { id: number; storeId: string | null; kind: string; severity: string; code: string; traceId: string | null; occurredAt: string };
 export type AuditEvent = { id: string; actorId: string | null; action: string; targetId: string | null; result: string; environment: string; occurredAt: string; requestId: string };
-export type AdminUser = { id: string; email: string; role: Role; status: string; createdAt: string; disabledAt: string | null };
 export type List<T> = { items: T[]; total?: number };
 export type Overview = { installedStoreCount: Metric; activeBundleCount: Metric; errorCount: Metric };
 

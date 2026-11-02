@@ -1,6 +1,6 @@
 # Developer Admin Console MVP 验收报告
 
-日期：2026-10-14。范围：本地实现及模拟数据源验证；没有真实 SHOPLINE 商家联调，也没有生产部署。
+更新日期：2026-10-15。范围：本地实现及模拟数据源验证；没有真实 SHOPLINE 商家联调，也没有生产部署。
 
 状态定义：PASS 表示有本地测试或代码证据；BLOCKED 表示缺少真实数据源或外部条件；NOT_TESTED 表示尚未进行对应环境验证。
 
@@ -14,16 +14,16 @@
 | ADM-06 Bundle 详情 | BLOCKED | 同 ADM-05，无法与商家端真实记录比对。 |
 | ADM-07 Overview | BLOCKED | 已安装数与最近错误数来自本地登记表；活动数明确显示不可用。真实统计口径待联调。 |
 | ADM-08 脱敏错误事件 | PASS | 本地记录与筛选测试通过，Webhook 不再输出原始载荷；尚未验证真实故障覆盖率与保留期。 |
-| ADM-09 管理审计 | PASS | 登录、敏感读取、邀请、停用写入独立审计表；本地流程验证。导出未实现，因此无导出尝试。 |
+| ADM-09 管理审计 | PASS | 登录、敏感读取、邀请、停用写入独立审计表；敏感读取按实际结果记录 success/not_found/failure。导出未实现，因此无导出尝试。 |
 | ADM-10 至 ADM-13 P1 | NOT_TESTED | 结构化日志、服务监控、扩展部署证据、历史趋势未接入。 |
 | ADM-14 至 ADM-16 P2 | NOT_TESTED | 部署历史、告警、受控运维操作未实施。 |
 
 ## 执行记录
 
-- 后台：Node 22.22.3 下 `npm test`，6/6 通过；`npm run build` 通过；`npm audit --omit=dev --audit-level=high` 为 0 漏洞。
+- 后台：Node 22.22.3 下 `npm test`，9/9 通过；`npm run build` 通过。生产依赖审计 0 高危漏洞为 2026-10-14 的结果，本轮未重跑。
 - 商家端：`node --test -r ts-node/register/transpile-only test/*.test.js test/*.test.cjs`，31/31 通过；`npm run build` 通过。SHOPLINE REST 调用优先使用 `v20260601`。
 - 浏览器：`node test/browser-smoke.mjs` 通过，登录、MFA、导航、搜索、未接入状态、管理员邀请/激活/停用，以及桌面和移动布局无页面异常。`docs/qa/fixture-*.png` 是测试夹具截图。
-- 安全边界：内部读取接口采用请求签名和重放保护；API 返回字段限定为登记数据；未向浏览器返回商家 access token 或 Webhook 原始载荷。
+- 安全边界：内部读取接口采用请求签名和重放保护；管理服务对内部响应执行字段投影和类型检查，异常数据返回不可用；MFA 待验证会话限制尝试次数。本地测试未向浏览器返回商家 access token 或 Webhook 原始载荷。
 
 ## 上线前事项
 

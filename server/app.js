@@ -1,9 +1,7 @@
 import express from 'express';
 import { randomUUID } from 'node:crypto';
-import { authenticator } from 'otplib';
 import { internalGet } from './internal-client.js';
-
-const roleRank = { Viewer: 1, Operator: 2, Owner: 3 };
+import { projectSource } from './source-projection.js';
 
 function cookie(req, name) {
   const raw = req.headers.cookie || '';
@@ -44,48 +42,17 @@ export function createApp(store, config) {
       attempt.count++;
       loginAttempts.set(key, attempt);
       if (attempt.count > 10) { res.status(429).json({ error: { code: 'RATE_LIMITED' }, requestId: res.locals.requestId }); return; }
-      const token = await store.beginLogin(req.body?.email, req.body?.password);
-      if (!token) { await store.audit({ action: 'login.password', result: 'failure', requestId: res.locals.requestId, environment: config.environment }); res.status(401).json({ error: { code: 'INVALID_CREDENTIALS' }, requestId: res.locals.requestId }); return; }
-      setCookie(res, 'admin_pending', token, 300, secure);
-      res.json({ data: { mfaRequired: true }, requestId: res.locals.requestId });
-    } catch { res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE' }, requestId: res.locals.requestId }); }
-  });
-
-  router.post('/auth/mfa/verify', async (req, res) => {
-    try {
-      const pending = cookie(req, 'admin_pending');
-      const session = await store.completeLogin(pending, req.body?.code);
-      if (!session) { await store.audit({ action: 'login.mfa', result: 'failure', requestId: res.locals.requestId, environment: config.environment }); res.status(401).json({ error: { code: 'INVALID_MFA' }, requestId: res.locals.requestId }); return; }
-      setCookie(res, 'admin_pending', '', 0, secure);
+      const session = await store.beginLogin(req.body?.email, req.body?.password);
+      if (!session) { await store.audit({ action: 'login.password', result: 'failure', requestId: res.locals.requestId, environment: config.environment }); res.status(401).json({ error: { code: 'INVALID_CREDENTIALS' }, requestId: res.locals.requestId }); return; }
       setCookie(res, 'admin_session', session.token, 8 * 3600, secure);
       res.json({ data: { authenticated: true }, requestId: res.locals.requestId });
     } catch { res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE' }, requestId: res.locals.requestId }); }
   });
 
-  router.post('/auth/invitation', async (req, res) => {
-    try {
-      const invitation = await store.getInvitation(req.body?.token);
-      if (!invitation) { res.status(404).json({ error: { code: 'INVITATION_NOT_FOUND' }, requestId: res.locals.requestId }); return; }
-      res.json({ data: { ...invitation, otpauthUrl: authenticator.keyuri(invitation.email, 'Kaching Developer Admin', invitation.mfaSecret) }, requestId: res.locals.requestId });
-    } catch { res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE' }, requestId: res.locals.requestId }); }
-  });
-
-  router.post('/auth/activate', async (req, res) => {
-    try {
-      const user = await store.activateInvitation(req.body?.token, req.body?.password, req.body?.code);
-      if (!user) { res.status(422).json({ error: { code: 'INVALID_MFA' }, requestId: res.locals.requestId }); return; }
-      res.status(201).json({ data: { email: user.email, role: user.role }, requestId: res.locals.requestId });
-    } catch (error) {
-      const code = error instanceof Error && /invitation/i.test(error.message) ? 'INVITATION_NOT_FOUND' : 'ACTIVATION_FAILED';
-      res.status(code === 'INVITATION_NOT_FOUND' ? 404 : 422).json({ error: { code }, requestId: res.locals.requestId });
-    }
-  });
-
-  const requireAdmin = (role) => async (req, res, next) => {
+  const requireOwner = async (req, res, next) => {
     try {
       const admin = await store.authenticate(cookie(req, 'admin_session'));
       if (!admin) { res.status(401).json({ error: { code: 'UNAUTHORIZED' }, requestId: res.locals.requestId }); return; }
-      if (roleRank[admin.role] < roleRank[role]) { res.status(403).json({ error: { code: 'FORBIDDEN' }, requestId: res.locals.requestId }); return; }
       res.locals.admin = admin;
       next();
     } catch { res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE' }, requestId: res.locals.requestId }); }
@@ -96,11 +63,11 @@ export function createApp(store, config) {
     next();
   };
 
-  router.get('/auth/me', requireAdmin('Viewer'), (req, res) => {
+  router.get('/auth/me', requireOwner, (req, res) => {
     const { id, email, role, csrfToken } = res.locals.admin;
     res.json({ data: { id, email, role, csrfToken, environment: config.environment }, requestId: res.locals.requestId });
   });
-  router.post('/auth/logout', requireAdmin('Viewer'), requireCsrf, async (req, res) => {
+  router.post('/auth/logout', requireOwner, requireCsrf, async (req, res) => {
     await store.logout(cookie(req, 'admin_session'));
     setCookie(res, 'admin_session', '', 0, secure);
     res.json({ data: { loggedOut: true }, requestId: res.locals.requestId });
@@ -108,12 +75,20 @@ export function createApp(store, config) {
 
   const source = (makePath, sensitive = false) => async (req, res) => {
     if (req.query.environment && req.query.environment !== config.environment) { res.status(422).json({ error: { code: 'INVALID_ENVIRONMENT' }, requestId: res.locals.requestId }); return; }
+    let response;
     try {
       const path = makePath(req);
-      if (sensitive) await store.audit({ actorId: res.locals.admin.id, action: 'read.sensitive', targetId: req.params.storeId || null, result: 'success', requestId: res.locals.requestId, environment: config.environment });
       const result = await internalGet(config, path);
-      res.status(result.status).json({ ...result.body, requestId: res.locals.requestId });
-    } catch { res.status(503).json({ error: { code: 'SOURCE_UNAVAILABLE' }, requestId: res.locals.requestId }); }
+      response = projectSource(path, result);
+    } catch { response = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    if (sensitive) {
+      try {
+        await store.audit({ actorId: res.locals.admin.id, action: 'read.sensitive', targetId: req.params.storeId || null,
+          result: response.status === 200 ? 'success' : response.status === 404 ? 'not_found' : 'failure',
+          requestId: res.locals.requestId, environment: config.environment });
+      } catch { res.status(503).json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId: res.locals.requestId }); return; }
+    }
+    res.status(response.status).json({ ...response.body, requestId: res.locals.requestId });
   };
   const query = (req, keys) => {
     const params = new URLSearchParams();
@@ -125,36 +100,16 @@ export function createApp(store, config) {
     next();
   };
 
-  router.get('/overview', requireAdmin('Viewer'), source(() => '/overview'));
-  router.get('/stores', requireAdmin('Viewer'), pageGuard, source((req) => `/stores${query(req, ['query', 'status', 'limit', 'offset'])}`));
-  router.get('/stores/:storeId', requireAdmin('Viewer'), source((req) => `/stores/${encodeURIComponent(req.params.storeId)}`, true));
-  router.get('/stores/:storeId/bundles', requireAdmin('Viewer'), pageGuard, source((req) => `/stores/${encodeURIComponent(req.params.storeId)}/bundles${query(req, ['limit', 'offset'])}`));
-  router.get('/bundles', requireAdmin('Viewer'), source(() => '/bundles'));
-  router.get('/events/errors', requireAdmin('Operator'), pageGuard, source((req) => `/events/errors${query(req, ['storeId', 'from', 'to', 'limit', 'offset'])}`, true));
-  router.get('/audit-events', requireAdmin('Owner'), pageGuard, async (req, res) => {
+  router.get('/overview', requireOwner, source(() => '/overview'));
+  router.get('/stores', requireOwner, pageGuard, source((req) => `/stores${query(req, ['query', 'status', 'limit', 'offset'])}`));
+  router.get('/stores/:storeId', requireOwner, source((req) => `/stores/${encodeURIComponent(req.params.storeId)}`, true));
+  router.get('/stores/:storeId/bundles', requireOwner, pageGuard, source((req) => `/stores/${encodeURIComponent(req.params.storeId)}/bundles${query(req, ['limit', 'offset'])}`));
+  router.get('/bundles', requireOwner, source(() => '/bundles'));
+  router.get('/events/errors', requireOwner, pageGuard, source((req) => `/events/errors${query(req, ['storeId', 'from', 'to', 'limit', 'offset'])}`, true));
+  router.get('/audit-events', requireOwner, pageGuard, async (req, res) => {
     try { res.json({ data: await store.listAudit(safePage(req)), requestId: res.locals.requestId }); }
     catch { res.status(503).json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId: res.locals.requestId }); }
   });
-  router.get('/admin-users', requireAdmin('Owner'), async (_req, res) => {
-    try { res.json({ data: await store.listUsers(), requestId: res.locals.requestId }); }
-    catch { res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE' }, requestId: res.locals.requestId }); }
-  });
-  router.post('/admin-users/invitations', requireAdmin('Owner'), requireCsrf, async (req, res) => {
-    try {
-      const invitation = await store.createInvitation(res.locals.admin.id, req.body?.email, req.body?.role);
-      res.status(201).json({ data: invitation, requestId: res.locals.requestId });
-    } catch { res.status(422).json({ error: { code: 'INVITATION_FAILED' }, requestId: res.locals.requestId }); }
-  });
-  router.post('/admin-users/:id/disable', requireAdmin('Owner'), requireCsrf, async (req, res) => {
-    try {
-      await store.disableUser(res.locals.admin.id, req.params.id);
-      res.json({ data: { disabled: true }, requestId: res.locals.requestId });
-    } catch (error) {
-      const code = error instanceof Error && /last Owner/.test(error.message) ? 'LAST_OWNER' : 'ADMIN_CHANGE_FAILED';
-      res.status(409).json({ error: { code }, requestId: res.locals.requestId });
-    }
-  });
-
   app.use('/admin-api/v1', router);
   app.use('/admin-api/v1', (_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND' }, requestId: res.locals.requestId || randomUUID() }));
   return app;

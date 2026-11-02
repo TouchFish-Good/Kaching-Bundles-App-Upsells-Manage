@@ -3,6 +3,7 @@ import { AdminStore } from './store.js';
 import { createApp } from './app.js';
 
 const port = Number(process.env.ADMIN_PORT || 4400);
+const host = process.env.ADMIN_HOST || '127.0.0.1';
 const dbPath = resolve(process.env.ADMIN_DB_PATH || './admin.sqlite');
 if (!process.env.ADMIN_ENCRYPTION_KEY || !process.env.ADMIN_INTERNAL_SECRET) {
   throw new Error('ADMIN_ENCRYPTION_KEY and ADMIN_INTERNAL_SECRET are required');
@@ -14,4 +15,4 @@ const app = createApp(store, {
   internalSecret: process.env.ADMIN_INTERNAL_SECRET,
   environment: process.env.ADMIN_ENVIRONMENT || 'development',
 });
-app.listen(port, () => console.log(`Developer Admin API listening on http://127.0.0.1:${port}`));
+app.listen(port, host, () => console.log(`Developer Admin API listening on http://${host}:${port}`));

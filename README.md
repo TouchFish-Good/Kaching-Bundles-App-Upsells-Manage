@@ -10,7 +10,9 @@
 4. 在本地设置 `ADMIN_BOOTSTRAP_EMAIL`、`ADMIN_BOOTSTRAP_PASSWORD`（至少 12 位），执行 `npm run bootstrap-owner -- --email owner@example.com` 生成 SQL。将输出通过受控命令写入 Admin D1；脚本不会连接或写入数据库。
 5. 构建前端：`npm run build:web`，再部署 Worker：`npx wrangler deploy`。
 
-生产环境不得提交 `.env`、`.dev.vars`、Owner 密码或 `ADMIN_INTERNAL_SECRET`。当前仓库尚未创建任何 Cloudflare D1、Secret、Service Binding、域名或远程部署。
+生产环境不得提交 `.env`、`.dev.vars`、Owner 密码或 `ADMIN_INTERNAL_SECRET`。2026-11-02 已创建 Admin D1、配置两个 Worker 的共享 Secret 与 Service Binding、初始化唯一 Owner，并部署管理后台至 Workers.dev 和 `https://admin.vswwy.cn`。
+
+密码记录默认使用 `PBKDF2-SHA256 v2/25000`，以适配 Workers Free 的 CPU 限额；系统仍可识别和验证旧的 `v1/600000` 记录。登录接口保留共享 D1 的每 IP 限流。若需重置唯一 Owner 密码，在本地设置 `ADMIN_OWNER_EMAIL` 与 `ADMIN_OWNER_PASSWORD` 后执行 `npm run reset-owner-password -- --email owner@example.com`，再将输出 SQL 受控写入 Admin D1。
 
 商家数据只通过 Service Binding 的内部只读接口获得。真实安装记录需要商家应用成功完成授权；订阅、活动/折扣和反馈审核的数据契约尚未接入，后台不会伪造这些数据。
 

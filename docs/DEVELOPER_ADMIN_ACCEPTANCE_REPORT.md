@@ -1,6 +1,6 @@
 # Developer Admin Console MVP 验收报告
 
-更新日期：2026-11-02。范围：Cloudflare Worker 本地 D1 与假 Service Binding 验证；没有创建 Cloudflare 远程资源、真实 SHOPLINE 商家联调或生产部署。
+更新日期：2026-11-02。范围：Cloudflare Worker 本地 D1 与假 Service Binding 验证，以及远程 Admin D1 迁移、共享 Secret、Service Binding 和 Workers.dev 部署；没有真实 SHOPLINE 商家联调。
 
 状态定义：PASS 表示有本地测试或代码证据；BLOCKED 表示缺少真实数据源或外部条件；NOT_TESTED 表示尚未进行对应环境验证。
 
@@ -21,13 +21,13 @@
 ## 执行记录
 
 - 后台：Node 24 下 Worker 测试、Owner SQL 脚本测试、Worker 类型检查和 Vite 生产构建已通过。旧 Node 运行时已移除。
-- 浏览器：未执行。运行真实登录 E2E 需要先创建 Admin D1 并提供真实 `ADMIN_DB` binding；不会以虚构 ID 代替。
+- HTTPS 接口冒烟：`https://admin.vswwy.cn/admin-api/v1/auth/login` 使用重置后的唯一 Owner 成功返回 HTTP 200。未执行浏览器 UI E2E。
 - 安全边界：内部读取采用 HMAC 签名，重放保护由商家 Worker 的 App D1 保持；管理 Worker 对商家响应执行字段投影，测试证明 access token 不会进入浏览器响应。
 
 ## 上线前事项
 
-1. 创建独立 Admin D1、设置两个 Worker 的共享 `ADMIN_INTERNAL_SECRET` 与 Service Binding，并应用迁移和 Owner SQL。
+1. 在真实 binding 下运行浏览器登录 UI E2E。
 2. 用真实测试店完成授权、卸载、重装和错误事件核对，再确认 ADM-03 至 ADM-08。
-3. 在真实 binding 下运行浏览器登录 E2E，随后完成 HTTPS、自定义域名、备份、保留期与部署验收。
+3. 确认备份、保留期与部署验收。
 
 本报告不将本地夹具数据视为真实商家验收，也不表示系统已可用于生产。

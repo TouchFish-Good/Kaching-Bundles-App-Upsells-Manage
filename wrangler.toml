@@ -11,5 +11,8 @@ service = "shopline-quantity-breaks"
 directory = "./dist"
 binding = "ASSETS"
 
-# Add the ADMIN_DB D1 binding with the database ID emitted by
-# `wrangler d1 create kaching-developer-admin` before the first remote deploy.
+[[d1_databases]]
+binding = "ADMIN_DB"
+database_name = "kaching-developer-admin"
+database_id = "ebc2ac26-dda7-4ea2-92c8-ef0e9e2b25ed"
+migrations_dir = "worker/migrations"

@@ -10,6 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "dev:worker": "wrangler dev --local",
     "bootstrap-owner": "node scripts/bootstrap-owner.mjs",
+    "reset-owner-password": "node scripts/reset-owner-password.mjs",
     "build": "tsc --noEmit && vite build",
     "build:web": "tsc --noEmit && vite build",
     "check:worker": "tsc --noEmit -p worker/tsconfig.json",

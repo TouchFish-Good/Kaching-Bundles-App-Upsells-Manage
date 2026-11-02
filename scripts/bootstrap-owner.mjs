@@ -25,9 +25,7 @@ if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
   const ownerGuard = '(SELECT 1 FROM admin_owner_lock WHERE id = 1)';
 
   console.log([
-    'BEGIN;',
     `INSERT INTO admin_users(id, email, password_record, role, status, created_at) SELECT ${sql(id)}, ${sql(email)}, ${sql(passwordRecord)}, 'Owner', 'active', ${createdAt} WHERE NOT EXISTS ${ownerGuard};`,
     `INSERT INTO admin_owner_lock(id, user_id) SELECT 1, ${sql(id)} WHERE EXISTS (SELECT 1 FROM admin_users WHERE id = ${sql(id)}) AND NOT EXISTS ${ownerGuard};`,
-    'COMMIT;',
   ].join('\n'));
 }

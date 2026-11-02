@@ -24,5 +24,6 @@ test('bootstrap owner emits guarded SQL without the raw password', async () => {
 
   assert.match(stdout, /INSERT INTO admin_users/);
   assert.match(stdout, /WHERE NOT EXISTS/);
+  assert.doesNotMatch(stdout, /\b(BEGIN|COMMIT)\b/);
   assert.doesNotMatch(stdout, new RegExp(password));
 });

@@ -1,6 +1,10 @@
 const FORMAT = 'pbkdf2-sha256';
-const VERSION = 'v1';
-const ITERATIONS = 600000;
+const DEFAULT_VERSION = 'v2';
+const ITERATIONS_BY_VERSION = {
+  v1: 600000,
+  // Fits within the Cloudflare Workers Free CPU allowance while login throttling remains enabled.
+  v2: 25000,
+};
 const SALT_BYTES = 16;
 const HASH_BITS = 256;
 
@@ -36,20 +40,22 @@ function equalBytes(left, right) {
 
 export async function createPasswordRecord(password) {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const hash = await derive(password, salt, ITERATIONS);
-  return [FORMAT, VERSION, ITERATIONS, base64url(salt), base64url(hash)].join('$');
+  const iterations = ITERATIONS_BY_VERSION[DEFAULT_VERSION];
+  const hash = await derive(password, salt, iterations);
+  return [FORMAT, DEFAULT_VERSION, iterations, base64url(salt), base64url(hash)].join('$');
 }
 
 export async function verifyPasswordRecord(record, password) {
   try {
     const [format, version, iterations, encodedSalt, encodedHash, extra] = String(record).split('$');
-    if (extra !== undefined || format !== FORMAT || version !== VERSION || iterations !== String(ITERATIONS)) return false;
+    const expectedIterations = ITERATIONS_BY_VERSION[version];
+    if (extra !== undefined || format !== FORMAT || !expectedIterations || iterations !== String(expectedIterations)) return false;
 
     const salt = fromBase64url(encodedSalt);
     const expectedHash = fromBase64url(encodedHash);
     if (salt.length !== SALT_BYTES || expectedHash.length !== HASH_BITS / 8) return false;
 
-    return equalBytes(expectedHash, await derive(password, salt, ITERATIONS));
+    return equalBytes(expectedHash, await derive(password, salt, expectedIterations));
   } catch {
     return false;
   }

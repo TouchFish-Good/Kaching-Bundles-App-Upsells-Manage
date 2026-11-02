@@ -1,34 +1,33 @@
 # Developer Admin Console MVP 验收报告
 
-更新日期：2026-10-15。范围：本地实现及模拟数据源验证；没有真实 SHOPLINE 商家联调，也没有生产部署。
+更新日期：2026-11-02。范围：Cloudflare Worker 本地 D1 与假 Service Binding 验证；没有创建 Cloudflare 远程资源、真实 SHOPLINE 商家联调或生产部署。
 
 状态定义：PASS 表示有本地测试或代码证据；BLOCKED 表示缺少真实数据源或外部条件；NOT_TESTED 表示尚未进行对应环境验证。
 
 | 需求 | 状态 | 证据及限制 |
 | --- | --- | --- |
-| ADM-01 独立认证 | PASS | 密码、TOTP MFA、会话失效及商家 Cookie 拒绝测试通过；独立账号使用 Argon2id。 |
-| ADM-02 服务端 RBAC | PASS | Viewer 对错误事件请求得到 403；Owner 管理接口受权限及 CSRF 保护。 |
-| ADM-03 商家安装清单 | BLOCKED | 稳定 ID、搜索分页、卸载重装及迟到卸载事件的本地测试通过；尚未与真实 SHOPLINE 店铺核对。 |
-| ADM-04 商家详情 | BLOCKED | 按稳定 ID 查询及安装周期本地通过；真实活动数量和最近异常的完整商家详情待数据源接入。 |
+| ADM-01 独立认证 | PASS | 单 Owner 的 PBKDF2 密码、会话失效、CSRF、登出、商家 Cookie 拒绝和共享登录限流由 Worker/D1 测试覆盖。没有 MFA。 |
+| ADM-02 管理权限 | PASS | 后台只有 Owner；所有管理读取在 Worker 内验证 Owner，会话状态不依赖商家 Cookie。 |
+| ADM-03 商家安装清单 | BLOCKED | Service Binding、HMAC 和字段投影已由假商家响应验证；尚未与真实 SHOPLINE 店铺核对。 |
+| ADM-04 商家详情 | BLOCKED | 稳定 ID 详情与敏感读取审计由本地 Worker 测试覆盖；真实数据仍待联调。 |
 | ADM-05 Bundle 查询 | BLOCKED | 商家服务已有草稿存储，但商家页面仍使用原型活动；跨店稳定 ID 投影未接入。管理接口返回 SOURCE_UNAVAILABLE，页面显示未接入。 |
 | ADM-06 Bundle 详情 | BLOCKED | 同 ADM-05，无法与商家端真实记录比对。 |
 | ADM-07 Overview | BLOCKED | 已安装数与最近错误数来自本地登记表；活动数明确显示不可用。真实统计口径待联调。 |
-| ADM-08 脱敏错误事件 | PASS | 本地记录与筛选测试通过，Webhook 不再输出原始载荷；尚未验证真实故障覆盖率与保留期。 |
-| ADM-09 管理审计 | PASS | 登录、敏感读取、邀请、停用写入独立审计表；敏感读取按实际结果记录 success/not_found/failure。导出未实现，因此无导出尝试。 |
+| ADM-08 脱敏错误事件 | PASS | 只允许投影后的 Trace ID 与结构化字段；格式错误、重放拒绝和源不可用均映射为安全错误。 |
+| ADM-09 管理审计 | PASS | 登录和敏感读取写入独立 Admin D1；敏感读取按 success/not_found/failure 记录，审计失败会阻断响应。 |
 | ADM-10 至 ADM-13 P1 | NOT_TESTED | 结构化日志、服务监控、扩展部署证据、历史趋势未接入。 |
 | ADM-14 至 ADM-16 P2 | NOT_TESTED | 部署历史、告警、受控运维操作未实施。 |
 
 ## 执行记录
 
-- 后台：Node 22.22.3 下 `npm test`，9/9 通过；`npm run build` 通过。生产依赖审计 0 高危漏洞为 2026-10-14 的结果，本轮未重跑。
-- 商家端：`node --test -r ts-node/register/transpile-only test/*.test.js test/*.test.cjs`，31/31 通过；`npm run build` 通过。SHOPLINE REST 调用优先使用 `v20260601`。
-- 浏览器：`node test/browser-smoke.mjs` 通过，登录、MFA、导航、搜索、未接入状态、管理员邀请/激活/停用，以及桌面和移动布局无页面异常。`docs/qa/fixture-*.png` 是测试夹具截图。
-- 安全边界：内部读取接口采用请求签名和重放保护；管理服务对内部响应执行字段投影和类型检查，异常数据返回不可用；MFA 待验证会话限制尝试次数。本地测试未向浏览器返回商家 access token 或 Webhook 原始载荷。
+- 后台：Node 24 下 Worker 测试、Owner SQL 脚本测试、Worker 类型检查和 Vite 生产构建已通过。旧 Node 运行时已移除。
+- 浏览器：未执行。运行真实登录 E2E 需要先创建 Admin D1 并提供真实 `ADMIN_DB` binding；不会以虚构 ID 代替。
+- 安全边界：内部读取采用 HMAC 签名，重放保护由商家 Worker 的 App D1 保持；管理 Worker 对商家响应执行字段投影，测试证明 access token 不会进入浏览器响应。
 
 ## 上线前事项
 
-1. 用真实测试店完成 `v20260601` 授权、卸载、重装和迟到 Webhook 测试，再确认 ADM-03。
-2. 让商家页面使用真实草稿存储，再按稳定 store ID 建立管理端只读投影；完成跨店 ID 篡改测试和活动详情对照，再确认 ADM-04 至 ADM-07。
-3. 确定生产数据库、备份与恢复、日志保留期、HTTPS、独立环境密钥及多实例重放存储；完成部署与安全验收。
+1. 创建独立 Admin D1、设置两个 Worker 的共享 `ADMIN_INTERNAL_SECRET` 与 Service Binding，并应用迁移和 Owner SQL。
+2. 用真实测试店完成授权、卸载、重装和错误事件核对，再确认 ADM-03 至 ADM-08。
+3. 在真实 binding 下运行浏览器登录 E2E，随后完成 HTTPS、自定义域名、备份、保留期与部署验收。
 
 本报告不将本地夹具数据视为真实商家验收，也不表示系统已可用于生产。

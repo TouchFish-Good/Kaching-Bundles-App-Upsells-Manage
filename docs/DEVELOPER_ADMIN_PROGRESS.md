@@ -1,16 +1,16 @@
 # Developer Admin Console 进度
 
-更新日期：2026-10-15。
+更新日期：2026-11-02。
 
-2026-11-02 单 Owner 与 Shadcn 方向（本地实现，未部署）：管理后台已按 Owner 固定账号密码收敛，移除 MFA、邀请、多管理员和角色导航入口；服务端保留短期 HttpOnly 会话、CSRF、登录限流、审计及与商家服务分离的 HMAC 内部读取边界。界面改为 Shadcn 风格的中性工作区、紧凑卡片/表格/Badge 和响应式移动摘要列表。浏览器夹具验收已覆盖 1440px、390px、360px 和 768px，无页面异常或水平溢出。订阅、建议审核和真实活动/折扣数据尚未接入，不得表述为已实现；详见 `DEVELOPER_ADMIN_SINGLE_OWNER_SHADCN_DESIGN.md`。
+2026-11-02 Cloudflare 原生迁移（本地实现，未部署）：管理后台已迁移为 Cloudflare Worker、独立 Admin D1 数据模型与 `MERCHANT_APP` Service Binding。它只保留一个固定 Owner 账户，不提供 MFA、邀请、多管理员或角色导航。认证使用 PBKDF2 密码记录、HttpOnly 会话、CSRF、共享 D1 登录限流和审计；商家只读数据经 HMAC 签名和字段白名单投影获得，管理后台不绑定商家 App D1。
 
 | 项目 | 状态 |
 | --- | --- |
-| 当前阶段 | 阶段 4 管理端基础功能已实现；完整 MVP 的真实商家数据链路仍待接入与验收 |
-| 已完成 | 独立管理员认证、MFA、RBAC、审计；本地商家安装登记、脱敏错误、签名内部读取 API；后台主要页面与管理员管理 |
-| 验证 | 详见最新测试输出与验收报告；本地浏览器截图使用夹具数据 |
-| 阻塞事项 | 商家页面仍使用原型活动数据，真实活动未进入后台读取链路；未用真实 SHOPLINE 店铺验证安装生命周期 |
-| 下一步 | 真实店铺联调、活动数据接入、生产数据库/备份/保留期/部署参数确认 |
+| 当前阶段 | Cloudflare Worker 本地验证完成；远程 Cloudflare 资源和部署尚未执行 |
+| 已完成 | 单 Owner 认证、会话、CSRF、登录限流、审计、HMAC Service Binding、字段投影、SPA 回退、离线 Owner SQL 生成 |
+| 验证 | Worker 测试、密码 SQL 脚本、类型检查和前端生产构建通过；浏览器 Worker 登录 E2E 未执行 |
+| 阻塞事项 | 尚未创建真实 Admin D1，故不能配置实际 D1 binding 或执行 Worker 浏览器登录冒烟；订阅、建议审核及真实活动/折扣契约尚未接入 |
+| 下一步 | 创建 Admin D1、配置 Secret 与 Service Binding、执行迁移与 Owner SQL、再进行 HTTPS/浏览器/真实店铺联调 |
 
 2026-10-14 对接增量：按 SHOPLINE 文档将店铺信息 REST 查询切换到 `v20260601`；卸载按 Webhook 的 `store_id` 和事件发生时间处理，并增加迟到事件回归测试。商家活动仓库已有草稿持久化，但商家页面仍用原型数据，因此后台 Bundles 继续明确显示未接入。逐项证据见 `DEVELOPER_ADMIN_ACCEPTANCE_REPORT.md`。`docs/qa/` 截图只包含测试夹具，不是实际商家数据。
 

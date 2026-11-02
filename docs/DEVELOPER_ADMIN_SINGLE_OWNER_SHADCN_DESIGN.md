@@ -1,12 +1,12 @@
 # Developer Admin Console: Single Owner and Shadcn Direction
 
-Updated: 2026-11-02. Status: implemented locally; production integration remains unverified.
+更新日期：2026-11-02。状态：Worker 本地实现已验证；Cloudflare 远程集成和浏览器登录 E2E 尚未执行。
 
 ## Confirmed Decisions
 
-- The console has exactly one Owner account. It is created once with `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD`.
-- Login is email and password only. There is no public registration, MFA step, invitation flow, team management page, or role-based navigation.
-- A successful password login creates a short-lived, `HttpOnly` management session. Logout, CSRF protection for mutations, login rate limiting, sensitive-read audit records, and the separate HMAC boundary to the merchant service remain in place.
+- 后台只有一个 Owner 账户。通过离线 `bootstrap-owner` 脚本读取 `ADMIN_BOOTSTRAP_EMAIL` 与 `ADMIN_BOOTSTRAP_PASSWORD`，生成受锁保护的 Admin D1 SQL。
+- 登录只有邮箱和密码；没有公开注册、MFA、邀请、团队管理或角色导航。
+- 密码登录创建短期 `HttpOnly` 会话；登出、CSRF、登录限流、敏感读取审计和商家 Worker 的 HMAC 边界仍然保留。
 
 ## Information Architecture
 
@@ -24,7 +24,7 @@ Subscription expiry, feedback moderation, and full campaign/discount inspection 
 
 The console follows a Shadcn-style internal-tool language: neutral `zinc` surfaces, small radii, one-pixel borders, compact controls, Lucide icons, and semantic status badges. Cards only frame discrete metrics and records; content sections remain unframed. Desktop uses a 240px navigation rail and responsive tables. Mobile uses a drawer navigation and labelled record summaries rather than squeezing data tables into the viewport.
 
-The visual evidence is maintained under `docs/qa/` for the login page plus Overview, Stores, and Bundles at desktop and mobile widths.
+当前 `docs/qa/` 中的旧夹具截图不构成 Cloudflare Worker 浏览器验收。真实 Admin D1 binding 就绪后，需重新采集登录页、Overview、Stores 与 Bundles 的桌面和移动端截图。
 
 ## Next Data Contracts
 

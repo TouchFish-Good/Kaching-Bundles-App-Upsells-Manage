@@ -1,98 +1,98 @@
-# Cloudflare Worker + D1 Developer Admin Design
+# Cloudflare Worker + D1 开发者管理后台设计
 
-## Purpose and Decisions
+## 目标与已确认决策
 
-The Developer Admin Console is a single-Owner operations tool. It must run entirely on Cloudflare while preserving a strict boundary from the merchant application:
+开发者管理后台是只允许一个 Owner 使用的运维工具。它必须完全运行在 Cloudflare 上，同时与商家应用保持严格的数据边界：
 
-- The merchant application remains the authority for merchant, entitlement, campaign, feedback, and diagnostic data in its existing App D1 database.
-- The admin console owns its credentials, sessions, CSRF state, audit records, and login throttling in a new Admin D1 database.
-- Both Workers run in the same Cloudflare account. The admin Worker reaches the merchant Worker through a Service Binding; the merchant database is never bound to the admin Worker.
-- The existing HMAC request signature and replay check remain enabled for the internal read boundary. A Service Binding removes the public network hop but does not replace this application-level authorization check.
-- The fixed Owner account is initialized once through a local administrative script that emits a versioned password record and inserts it into Admin D1. There is no registration route or runtime bootstrap credential.
+- 商家应用继续作为其现有 App D1 中商家、订阅权益、活动、反馈和诊断数据的唯一权威来源。
+- 管理后台在新的 Admin D1 中保存账号凭据、会话、CSRF 状态、审计记录和登录限流数据。
+- 两个 Worker 部署在同一个 Cloudflare 账户。管理后台 Worker 通过 Service Binding 调用商家 Worker；商家数据库不会绑定给管理后台 Worker。
+- 现有的 HMAC 请求签名和重放校验继续用于内部读取边界。Service Binding 消除了公网跳转，但不替代这一层应用级授权校验。
+- 固定 Owner 账户由本地管理脚本一次性初始化。脚本生成带版本的密码记录并写入 Admin D1；系统不提供注册接口或运行时初始化凭据。
 
-The target is production deployability on Cloudflare. It does not claim that merchant data sources that are currently unavailable have become available.
+目标是使系统可以在 Cloudflare 上生产部署，但不把当前尚未接入的商家数据源表述为已可用。
 
-## Deployment Topology
+## 部署拓扑
 
 ```text
-Browser
+浏览器
   -> developer-admin.example.com
-  -> Developer Admin Worker (static Vite assets + /admin-api/v1)
-       -> Admin D1: owner, sessions, CSRF, audit, login attempts
-       -> MERCHANT_APP Service Binding + HMAC signature
-            -> Merchant App Worker
-                 -> App D1: stores, entitlements, campaigns, feedback, diagnostics
+  -> 开发者管理后台 Worker（Vite 静态资源 + /admin-api/v1）
+       -> Admin D1：Owner、会话、CSRF、审计、登录尝试
+       -> MERCHANT_APP Service Binding + HMAC 签名
+            -> 商家应用 Worker
+                 -> App D1：店铺、订阅权益、活动、反馈、诊断
 ```
 
-The Developer Admin Worker serves the built `web/dist` assets and the API from one origin. Its SPA fallback must only apply to non-API paths. API responses remain `Cache-Control: no-store`; assets retain the normal Workers Assets cache behaviour.
+开发者管理后台 Worker 从同一域名提供构建后的 `web/dist` 静态资源与 API。SPA 回退仅处理非 API 路径。API 响应保持 `Cache-Control: no-store`；静态资源保留 Workers Assets 的正常缓存行为。
 
-The Worker configuration must use a new `ADMIN_DB` D1 binding and a `MERCHANT_APP` Service Binding to the existing `shopline-quantity-breaks` Worker. Database IDs, domains, and secret values remain deployment configuration and are never committed.
+Worker 配置使用新的 `ADMIN_DB` D1 绑定，并通过 `MERCHANT_APP` Service Binding 调用现有的 `shopline-quantity-breaks` Worker。数据库 ID、域名和密钥值属于部署配置，绝不提交。
 
-## Admin D1 Data Model
+## Admin D1 数据模型
 
-Admin D1 contains only the following tables:
+Admin D1 只包含以下表：
 
-- `admin_users`: exactly one active `Owner`; email is unique; the password record is a versioned Web Crypto PBKDF2-SHA-256 record with random salt and explicit iteration count.
-- `admin_sessions`: hashed opaque session token, CSRF token, creation, activity, expiry, and revocation timestamps.
-- `admin_audit`: Owner login, logout, sensitive reads, and future moderation mutation audit events.
-- `admin_login_attempts`: a keyed, expiring 15-minute counter used to reject the eleventh failed-or-successful attempt from the same source.
-- `admin_internal_nonces`: an expiring nonce replay ledger used when this Worker sends signed merchant reads, allowing the existing merchant HMAC verification contract to remain unchanged.
+- `admin_users`：仅允许一个活跃的 `Owner`；邮箱唯一；密码记录使用含随机盐和明确迭代次数、带版本的 Web Crypto PBKDF2-SHA-256 格式。
+- `admin_sessions`：哈希后的不透明会话令牌、CSRF 令牌、创建时间、活动时间、过期时间和撤销时间。
+- `admin_audit`：Owner 登录、登出、敏感读取，以及未来审核操作的审计事件。
+- `admin_login_attempts`：按来源记录、15 分钟自动过期的计数器，用于拒绝同一来源的第 11 次及之后登录尝试。
+- `admin_internal_nonces`：管理后台向商家端发起已签名读取时使用的、自动过期的 nonce 重放记录，确保现有商家端 HMAC 校验契约不变。
 
-No merchant access tokens, webhook payloads, campaign records, feedback content, or subscription data are copied into Admin D1.
+Admin D1 不复制商家 access token、Webhook 原始载荷、活动记录、反馈内容或订阅数据。
 
-Sessions use `HttpOnly`, `Secure`, `SameSite=Lax`, path `/admin-api/v1`, eight-hour absolute expiry, and a thirty-minute idle expiry. Authentication compares password records with Web Crypto and returns no account-enumeration details. D1 writes are checked before a protected response is returned where an audit record is mandatory.
+会话使用 `HttpOnly`、`Secure`、`SameSite=Lax`、路径 `/admin-api/v1`、8 小时绝对过期和 30 分钟空闲过期。身份验证使用 Web Crypto 比较密码记录，且不返回可用于枚举账号的信息。对于必须审计的受保护操作，审计写入成功后才返回响应。
 
-## Worker API and Internal Data Flow
+## Worker API 与内部数据流
 
-The browser API remains compatible with the current frontend:
+浏览器 API 保持与当前前端兼容：
 
 - `POST /admin-api/v1/auth/login`
 - `GET /admin-api/v1/auth/me`
 - `POST /admin-api/v1/auth/logout`
-- `GET /admin-api/v1/overview`, `/stores`, `/stores/:storeId`, `/stores/:storeId/bundles`, `/bundles`, `/events/errors`, and `/audit-events`
+- `GET /admin-api/v1/overview`、`/stores`、`/stores/:storeId`、`/stores/:storeId/bundles`、`/bundles`、`/events/errors` 和 `/audit-events`
 
-The admin Worker validates pagination and environment inputs, authenticates the single Owner, signs the requested path, and invokes `env.MERCHANT_APP.fetch()`. The projection layer permits only explicitly defined response fields before returning data to the browser. Merchant errors map to the existing `NOT_FOUND`, `INVALID_SOURCE_QUERY`, and `SOURCE_UNAVAILABLE` API contract.
+管理后台 Worker 校验分页和环境参数、验证唯一 Owner、为请求路径签名并调用 `env.MERCHANT_APP.fetch()`。字段投影层只允许明确定义的字段返回浏览器。商家端错误映射到现有 `NOT_FOUND`、`INVALID_SOURCE_QUERY` 与 `SOURCE_UNAVAILABLE` API 契约。
 
-The merchant Worker continues to authorize `/internal/admin-read/v1/*` using `ADMIN_INTERNAL_SECRET`, timestamp, and nonce. Its existing routes already serve Overview, Stores, Store Detail, and Errors. A later data-contract task will add dedicated internal routes for subscription entitlement summaries, campaign/discount summaries, and feedback moderation; until those routes are implemented and backed by real App D1 records, the console must report them as unavailable.
+商家 Worker 继续使用 `ADMIN_INTERNAL_SECRET`、时间戳和 nonce 授权 `/internal/admin-read/v1/*`。现有路由已可提供 Overview、Stores、Store Detail 和 Errors。后续数据契约任务会增加订阅权益摘要、活动/折扣摘要和反馈审核的内部路由；在这些路由实现并由真实 App D1 记录支撑前，管理后台必须明确显示不可用。
 
-## Migration and Initialization
+## 迁移与初始化
 
-The deployment creates a new Admin D1 database and applies an ordered migration set with Wrangler. It does not import the local `admin.sqlite` file: local sessions and audit events are non-production development artifacts, and the Owner is deliberately reseeded for the production environment.
+部署时创建新的 Admin D1 数据库，并通过 Wrangler 应用有序迁移集。不导入本地 `admin.sqlite` 文件：本地会话和审计事件仅是非生产开发数据，生产环境的 Owner 会被有意重新初始化。
 
-An offline `bootstrap-owner` script accepts an email and password from the operator environment, creates a PBKDF2 record using the same versioned format as the Worker, and emits parameterized SQL for `wrangler d1 execute --remote`. It refuses to produce an insert if an active Owner already exists. Password values and generated SQL are not written to the repository or test fixtures.
+离线 `bootstrap-owner` 脚本从操作者环境接收邮箱与密码，按照与 Worker 相同的带版本 PBKDF2 格式生成记录，并输出供 `wrangler d1 execute --remote` 使用的参数化 SQL。若已存在活跃 Owner，脚本拒绝生成插入语句。密码值和生成的 SQL 不写入仓库或测试夹具。
 
-Cloudflare Secrets are configured independently for each deployed Worker:
+每个已部署 Worker 独立配置 Cloudflare Secrets：
 
-- Admin Worker: `ADMIN_INTERNAL_SECRET`.
-- Merchant Worker: the same `ADMIN_INTERNAL_SECRET`.
+- Admin Worker：`ADMIN_INTERNAL_SECRET`。
+- Merchant Worker：相同的 `ADMIN_INTERNAL_SECRET`。
 
-There is no production `.env` file. If a future deployment needs an encryption key for a feature, it is created as a Worker secret and documented without a value.
+生产环境不存在 `.env` 文件。未来若某项功能需要加密密钥，则创建为 Worker Secret，并只记录配置名称、不记录值。
 
-## Error Handling, Observability, and Security
+## 错误处理、可观测性与安全性
 
-- Invalid request JSON, pagination, and CSRF tokens produce explicit 4xx API codes; database and Service Binding failures produce a generic 503 response without internal detail.
-- Every response carries an opaque request ID. Merchant Trace IDs are returned only through the projected error-event contract.
-- The owner password, session tokens, HMAC secret, full merchant records, access tokens, and raw webhook payloads never enter browser responses or audit records.
-- The Service Binding has no App D1 binding. The merchant Worker remains responsible for row-level and field-level projections.
-- Login throttling is stored in Admin D1 so it remains effective across Worker isolates. Expired throttling and nonce rows are pruned by a scheduled Worker handler.
+- 无效 JSON、分页和 CSRF 令牌返回明确的 4xx API 错误；数据库或 Service Binding 失败返回不暴露内部细节的通用 503。
+- 每个响应携带不透明 request ID。商家 Trace ID 仅通过已投影的错误事件契约返回。
+- Owner 密码、会话令牌、HMAC 密钥、完整商家记录、access token 和原始 Webhook 载荷均不得进入浏览器响应或审计记录。
+- Service Binding 不具有 App D1 绑定。商家 Worker 继续负责按行和按字段投影。
+- 登录限流保存在 Admin D1，使其跨 Worker isolate 仍然有效。过期的限流与 nonce 记录由 Worker 定时任务清理。
 
-## Testing and Acceptance
+## 测试与验收
 
-The migration must be verified with the Cloudflare Vitest pool and a local D1 binding. Tests cover:
+迁移必须使用 Cloudflare Vitest pool 和本地 D1 绑定验证。测试覆盖：
 
-1. Owner creation, PBKDF2 verification, duplicate Owner refusal, session expiry, logout, CSRF, and shared login throttling.
-2. HMAC-signed Service Binding reads, response projection, replay rejection, unavailable merchant source handling, and mandatory sensitive-read audit outcomes.
-3. Worker route contracts for unauthenticated, malformed, unauthorized, and successful flows.
-4. Static-asset SPA fallback does not capture `/admin-api/*` routes.
-5. Vite build, Worker type check, Wrangler dry-run, and desktop/mobile browser smoke tests.
+1. Owner 创建、PBKDF2 校验、重复 Owner 拒绝、会话过期、登出、CSRF 和共享登录限流。
+2. HMAC 签名的 Service Binding 读取、响应投影、重放拒绝、商家源不可用处理，以及敏感读取的必需审计结果。
+3. 未认证、请求格式错误、无权限和成功流程的 Worker 路由契约。
+4. 静态资源 SPA 回退不会截获 `/admin-api/*` 路由。
+5. Vite 构建、Worker 类型检查、Wrangler dry-run，以及桌面端和移动端浏览器冒烟测试。
 
-Production acceptance additionally requires applying the Admin D1 migration, configuring both Worker secrets and the Service Binding, seeding the one Owner, accessing the production custom domain over HTTPS, and proving that the admin Worker has no App D1 binding.
+生产验收还要求：应用 Admin D1 迁移、配置两个 Worker 的 Secret 和 Service Binding、初始化唯一 Owner、通过 HTTPS 访问生产自定义域名，并证明管理后台 Worker 没有 App D1 绑定。
 
-## Non-goals and Phasing
+## 非目标与分阶段范围
 
-This implementation replaces only the admin runtime and its local state store. It does not fabricate subscription expiry, campaign publication, or feedback moderation data. Those merchant-side capabilities are a follow-up phase after their internal contracts and tests exist.
+本次实现仅替换管理后台的运行时和本地状态存储，不伪造订阅到期、活动发布或反馈审核数据。这些商家侧能力将在其内部契约和测试存在后作为后续阶段完成。
 
-The implementation is split into two deliverables:
+实现分为两个交付项：
 
-1. A deployable Cloudflare-native admin Worker preserving all currently available read-only pages, authentication, audit, and source-projection behaviour.
-2. Merchant internal-contract expansion and admin UI enablement for subscriptions, campaigns, and feedback moderation, each backed by real App D1 data and separately verified.
+1. 可部署的 Cloudflare 原生管理后台 Worker，保留目前可用的只读页面、认证、审计和数据投影行为。
+2. 扩展商家内部数据契约，并为订阅、活动和反馈审核启用管理后台 UI；每项能力均由真实 App D1 数据支持并单独验证。

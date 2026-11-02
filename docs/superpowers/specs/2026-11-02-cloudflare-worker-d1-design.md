@@ -26,17 +26,17 @@
 
 开发者管理后台 Worker 从同一域名提供构建后的 `web/dist` 静态资源与 API。SPA 回退仅处理非 API 路径。API 响应保持 `Cache-Control: no-store`；静态资源保留 Workers Assets 的正常缓存行为。
 
-Worker 配置使用新的 `ADMIN_DB` D1 绑定，并通过 `MERCHANT_APP` Service Binding 调用现有的 `shopline-quantity-breaks` Worker。数据库 ID、域名和密钥值属于部署配置，绝不提交。
+Worker 配置使用新的 `ADMIN_DB` D1 绑定，并通过 `MERCHANT_APP` Service Binding 调用现有的 `shopline-quantity-breaks` Worker。D1 的数据库 ID 不是密钥，应与 Worker 配置一同版本控制；域名和密钥值属于部署配置，其中密钥绝不提交。
 
 ## Admin D1 数据模型
 
 Admin D1 只包含以下表：
 
 - `admin_users`：仅允许一个活跃的 `Owner`；邮箱唯一；密码记录使用含随机盐和明确迭代次数、带版本的 Web Crypto PBKDF2-SHA-256 格式。
+- `admin_owner_lock`：固定主键为 `1` 的单行锁，记录唯一 Owner 的 user ID；与创建 Owner 的用户记录在同一 D1 批处理中写入，防止并发初始化创建多个账户。
 - `admin_sessions`：哈希后的不透明会话令牌、CSRF 令牌、创建时间、活动时间、过期时间和撤销时间。
 - `admin_audit`：Owner 登录、登出、敏感读取，以及未来审核操作的审计事件。
 - `admin_login_attempts`：按来源记录、15 分钟自动过期的计数器，用于拒绝同一来源的第 11 次及之后登录尝试。
-- `admin_internal_nonces`：管理后台向商家端发起已签名读取时使用的、自动过期的 nonce 重放记录，确保现有商家端 HMAC 校验契约不变。
 
 Admin D1 不复制商家 access token、Webhook 原始载荷、活动记录、反馈内容或订阅数据。
 
@@ -74,7 +74,7 @@ Admin D1 不复制商家 access token、Webhook 原始载荷、活动记录、�
 - 每个响应携带不透明 request ID。商家 Trace ID 仅通过已投影的错误事件契约返回。
 - Owner 密码、会话令牌、HMAC 密钥、完整商家记录、access token 和原始 Webhook 载荷均不得进入浏览器响应或审计记录。
 - Service Binding 不具有 App D1 绑定。商家 Worker 继续负责按行和按字段投影。
-- 登录限流保存在 Admin D1，使其跨 Worker isolate 仍然有效。过期的限流与 nonce 记录由 Worker 定时任务清理。
+- 登录限流保存在 Admin D1，使其跨 Worker isolate 仍然有效。过期的限流记录在后续登录尝试中清理。HMAC nonce 的重放校验继续只由商家 Worker 在 App D1 的 `internal_request_nonces` 表中执行。
 
 ## 测试与验收
 

@@ -1,21 +1,19 @@
 # Kaching Developer Admin
 
-Internal read-only console for the SHOPLINE app. The merchant app lives in the sibling `Kaching Bundles App & Upsells New/bundles-app-upsells-new` project. The console does not use SHOPLINE merchant sessions for administrator access.
+独立开发者只读管理后台。商家应用位于同级 `Kaching Bundles App & Upsells New/bundles-app-upsells-new` 项目；管理后台使用固定 Owner 账户，不使用 SHOPLINE 商家会话。
 
-## Local setup
+## Cloudflare 部署准备
 
-1. Install dependencies with `npm install`.
-2. Set `ADMIN_ENCRYPTION_KEY` to 32 random bytes encoded as 64 hex characters, and set a distinct `ADMIN_INTERNAL_SECRET` to a long random value. The merchant app must receive the same `ADMIN_INTERNAL_SECRET`. Keep both outside Git.
-3. Set `ADMIN_INTERNAL_URL` to the merchant backend URL (default `http://127.0.0.1:3000`) and `ADMIN_ENVIRONMENT=development`.
-4. With `ADMIN_BOOTSTRAP_EMAIL` and a strong `ADMIN_BOOTSTRAP_PASSWORD` set in the environment, run `npm run bootstrap-owner` once. It creates the only Owner account; clear the bootstrap password environment variable afterwards.
-5. Run `npm run server:dev` and `npm run dev`; open `http://127.0.0.1:5174`.
+1. 创建独立的 Admin D1 数据库，并将其 ID 写入 `wrangler.toml` 的 `ADMIN_DB` 绑定。
+2. 为 Admin Worker 和商家 Worker 配置相同的 `ADMIN_INTERNAL_SECRET` Secret，并设置 `MERCHANT_APP` Service Binding 指向商家 Worker。
+3. 应用 `worker/migrations/` 中的 Admin D1 迁移。
+4. 在本地设置 `ADMIN_BOOTSTRAP_EMAIL`、`ADMIN_BOOTSTRAP_PASSWORD`（至少 12 位），执行 `npm run bootstrap-owner -- --email owner@example.com` 生成 SQL。将输出通过受控命令写入 Admin D1；脚本不会连接或写入数据库。
+5. 构建前端：`npm run build:web`，再部署 Worker：`npx wrangler deploy`。
 
-The API binds to `127.0.0.1` by default. Set `ADMIN_HOST` explicitly when deploying behind a trusted HTTPS reverse proxy.
+生产环境不得提交 `.env`、`.dev.vars`、Owner 密码或 `ADMIN_INTERNAL_SECRET`。当前仓库尚未创建任何 Cloudflare D1、Secret、Service Binding、域名或远程部署。
 
-The merchant backend must be running for Stores and Overview. Real installation records appear only after a SHOPLINE authorization successfully returns a stable store ID from `GET /merchants/shop.json`; no sample store is seeded. Bundle activity remains unavailable until the merchant app persists real activities. The UI says so rather than showing demo data.
+商家数据只通过 Service Binding 的内部只读接口获得。真实安装记录需要商家应用成功完成授权；订阅、活动/折扣和反馈审核的数据契约尚未接入，后台不会伪造这些数据。
 
-Local SQLite files are for development. Production requires independent HTTPS deployment, durable database and backup decisions, environment separation, a shared replay store for signed internal requests in multi-instance deployments, and live SHOPLINE verification. Do not deploy this local setup as production.
+## 本地检查
 
-## Checks
-
-Run `npm test` and `npm run build`. The merchant app's tests are under its `app/test/` directory and run with `node --test -r ts-node/register/transpile-only test/*.test.js` from its `app` directory.
+使用 Node 22+ 执行：`npm run test:worker`、`npm run check:worker` 和 `npm run build:web`。商家应用拥有独立的测试与部署流程。

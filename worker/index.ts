@@ -27,6 +27,15 @@ api.onError((_error, context) => context.json({
 }, 503));
 
 const worker = new Hono<{ Bindings: Env }>();
-worker.route('/admin-api/v1', api);
+worker.all('/admin-api/v1/*', (context) => {
+  const url = new URL(context.req.url);
+  url.pathname = url.pathname.slice('/admin-api/v1'.length) || '/';
+  return api.fetch(new Request(url, context.req.raw), context.env, context.executionCtx);
+});
+worker.get('*', async (context) => {
+  const asset = await context.env.ASSETS.fetch(context.req.raw);
+  if (asset.status !== 404) return asset;
+  return context.env.ASSETS.fetch(new Request(new URL('/', context.req.url)));
+});
 
 export default worker;

@@ -15,3 +15,9 @@ export function displayStatus(feedback) {
 export function canChangeStatus(feedback) {
   return feedback.displayStatus !== 'withdrawn';
 }
+
+export const commentManagementHeaders = ['评论', '商家', '是否匿名', '状态', '创建时间', '所属建议', '操作'];
+
+export function commentSourceLabel(comment) {
+  return comment.feedbackTitle;
+}

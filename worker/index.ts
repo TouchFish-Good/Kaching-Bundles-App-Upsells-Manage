@@ -4,12 +4,21 @@ import { registerAdminApiRoutes, type ApiVariables } from './routes/admin-api';
 import { registerAuthRoutes } from './routes/auth';
 
 const api = new Hono<{ Bindings: Env; Variables: ApiVariables }>();
+const traceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requestTraceId(request: Request): string {
+  const candidate = request.headers.get('x-trace-id')?.trim() ?? '';
+  return traceIdPattern.test(candidate) ? candidate : crypto.randomUUID();
+}
 
 api.use('*', async (context, next) => {
   const requestId = crypto.randomUUID();
+  const traceId = requestTraceId(context.req.raw);
   context.set('requestId', requestId);
+  context.set('traceId', traceId);
   context.header('Cache-Control', 'no-store');
   context.header('X-Request-Id', requestId);
+  context.header('X-Trace-Id', traceId);
   await next();
 });
 

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, Package, ShieldCheck, Store as StoreIcon, X } from 'lucide-react';
+import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, Package, ShieldCheck, Store as StoreIcon, Wrench, X } from 'lucide-react';
 import { api, ApiError, type Admin } from './api';
 import { FeedbackDetailPage, FeedbackPage } from './feedback';
 import { AuditPage, BundlesPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
+import { CampaignDetailPage, CampaignsPage } from './campaigns';
+import { DiagnosticsPage } from './diagnostics';
 
 function Login({ onReady }: { onReady: (admin: Admin) => void }) {
   const [email, setEmail] = useState('');
@@ -40,6 +42,8 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
     { to: '/overview', label: 'Overview', icon: LayoutDashboard },
     { to: '/stores', label: 'Stores', icon: StoreIcon },
     { to: '/bundles', label: 'Bundles', icon: Package },
+    { to: '/campaigns', label: '活动与排障', icon: Wrench },
+    { to: '/diagnostics', label: '诊断', icon: Activity },
     { to: '/errors', label: 'Errors', icon: Activity },
     { to: '/feedback', label: '需求与建议', icon: MessageSquareText },
     { to: '/audit', label: 'Audit', icon: ClipboardList },
@@ -59,6 +63,9 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
       <Route path="/stores" element={<StoresPage />} />
       <Route path="/stores/:storeId" element={<StoreDetailPage admin={admin} />} />
       <Route path="/bundles" element={<BundlesPage />} />
+      <Route path="/campaigns" element={<CampaignsPage />} />
+      <Route path="/campaigns/:id" element={<CampaignDetailPage admin={admin} />} />
+      <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
       <Route path="/feedback" element={<FeedbackPage />} />
       <Route path="/feedback/:id" element={<FeedbackDetailPage admin={admin} />} />

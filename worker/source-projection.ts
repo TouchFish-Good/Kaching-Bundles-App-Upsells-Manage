@@ -13,6 +13,15 @@ function optionalText(value: unknown): value is string | null {
   return value === null || text(value);
 }
 
+function optionalInteger(value: unknown): value is number | null {
+  return value === null || Number.isInteger(value);
+}
+
+function textList(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some((item) => !text(item))) throw new Error('INVALID_SOURCE');
+  return value;
+}
+
 function storeSummary(value: unknown): Record<string, string> {
   if (!record(value) || !text(value.storeId) || !text(value.handle) || !text(value.scope) || !text(value.status) ||
     !['installed', 'uninstalled'].includes(value.status) || !text(value.installedAt) || !text(value.updatedAt)) {
@@ -40,6 +49,7 @@ function metric(value: unknown): Record<string, string | number | null> {
 
 function sourceError(status: number): Projection {
   if (status === 404) return { status: 404, body: { error: { code: 'NOT_FOUND' } } };
+  if (status === 409) return { status: 409, body: { error: { code: 'CAMPAIGN_CONFLICT' } } };
   if (status === 422) return { status: 422, body: { error: { code: 'INVALID_SOURCE_QUERY' } } };
   return { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } };
 }
@@ -87,6 +97,51 @@ function feedbackWrite(value: unknown): Record<string, unknown> {
   return { feedback: { id: value.feedback.id, status: value.feedback.status } };
 }
 
+const campaignStatuses = ['draft', 'active', 'scheduled', 'paused', 'ended'];
+const campaignDiscountTypes = ['none', 'percentage', 'fixed_amount', 'fixed_price', 'bundle_fixed_amount', 'bundle_fixed_price'];
+const diagnosticEventTypes = ['shopline_api', 'worker_error', 'campaign_pause', 'campaign_read'];
+const diagnosticOutcomes = ['success', 'failure', 'uncertain'];
+
+function campaignScope(value: unknown): Record<string, unknown> {
+  if (!record(value) || !text(value.kind) || !['all', 'products', 'collections'].includes(value.kind) || !Array.isArray(value.excludedProductIds)) throw new Error('INVALID_SOURCE');
+  const result: Record<string, unknown> = { kind: value.kind, excludedProductIds: textList(value.excludedProductIds) };
+  if (value.productIds !== undefined) result.productIds = textList(value.productIds);
+  if (value.collectionIds !== undefined) result.collectionIds = textList(value.collectionIds);
+  if (value.resolvedProductIds !== undefined) result.resolvedProductIds = textList(value.resolvedProductIds);
+  return result;
+}
+
+function campaignTier(value: unknown): Record<string, unknown> {
+  if (!record(value) || !text(value.tierId) || !Number.isInteger(value.displayOrder) || !Number.isInteger(value.quantity) || Number(value.quantity) < 1 || !text(value.discountType) || !campaignDiscountTypes.includes(value.discountType)) throw new Error('INVALID_SOURCE');
+  const result: Record<string, unknown> = { tierId: value.tierId, displayOrder: value.displayOrder, quantity: value.quantity, discountType: value.discountType };
+  if (Number.isInteger(value.discountValue)) result.discountValue = value.discountValue;
+  if (typeof value.recommended === 'boolean') result.recommended = value.recommended;
+  for (const key of ['label', 'subtitle', 'tag']) if (text(value[key])) result[key] = value[key];
+  return result;
+}
+
+function campaign(value: unknown): Record<string, unknown> {
+  if (!record(value) || !text(value.id) || !text(value.name) || !text(value.status) || !campaignStatuses.includes(value.status) || !Number.isInteger(value.revision) || !Array.isArray(value.tiers) || !optionalText(value.startsAt) || !optionalText(value.endsAt) || !optionalText(value.pauseReason) || !text(value.updatedAt)) throw new Error('INVALID_SOURCE');
+  return {
+    id: value.id, name: value.name, status: value.status, revision: value.revision,
+    scope: campaignScope(value.scope), tiers: value.tiers.map(campaignTier), startsAt: value.startsAt,
+    endsAt: value.endsAt, pauseReason: value.pauseReason, updatedAt: value.updatedAt,
+  };
+}
+
+function diagnostic(value: unknown): Record<string, unknown> {
+  if (!record(value) || !text(value.id) || !text(value.traceId) || !text(value.workerName) || !optionalText(value.storeId) ||
+    !optionalText(value.shopHandle) || !optionalText(value.campaignId) || !text(value.eventType) || !diagnosticEventTypes.includes(value.eventType) ||
+    !text(value.outcome) || !diagnosticOutcomes.includes(value.outcome) || !optionalText(value.upstreamService) || !optionalText(value.upstreamPath) ||
+    !optionalInteger(value.upstreamStatus) || !optionalText(value.upstreamRequestId) || !optionalText(value.errorCode) || !optionalInteger(value.durationMs) || !text(value.occurredAt)) throw new Error('INVALID_SOURCE');
+  return {
+    id: value.id, traceId: value.traceId, workerName: value.workerName, storeId: value.storeId, shopHandle: value.shopHandle,
+    campaignId: value.campaignId, eventType: value.eventType, outcome: value.outcome, upstreamService: value.upstreamService,
+    upstreamPath: value.upstreamPath, upstreamStatus: value.upstreamStatus, upstreamRequestId: value.upstreamRequestId,
+    errorCode: value.errorCode, durationMs: value.durationMs, occurredAt: value.occurredAt,
+  };
+}
+
 export function projectSource(path: string, result: SourceResult): Projection {
   if (result.status !== 200) return sourceError(result.status);
   if (!record(result.body) || !record(result.body.data)) throw new Error('INVALID_SOURCE');
@@ -102,6 +157,19 @@ export function projectSource(path: string, result: SourceResult): Projection {
     return { status: 200, body: { data: { total: data.total, items: data.items.map(storeSummary) } } };
   }
   if (/^\/stores\/[^/]+$/.test(path)) return { status: 200, body: { data: storeDetail(data) } };
+  if (/^\/stores\/[^/]+\/campaigns(?:\?.*)?$/.test(path)) {
+    if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
+    return { status: 200, body: { data: { total: data.total, items: data.items.map(campaign) } } };
+  }
+  if (/^\/stores\/[^/]+\/campaigns\/[^/]+$/.test(path)) return { status: 200, body: { data: { campaign: campaign(data) } } };
+  if (/^\/stores\/[^/]+\/campaigns\/[^/]+\/pause$/.test(path)) {
+    if (!record(data.campaign)) throw new Error('INVALID_SOURCE');
+    return { status: 200, body: { data: { campaign: campaign(data.campaign) } } };
+  }
+  if (path === '/diagnostics' || path.startsWith('/diagnostics?')) {
+    if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
+    return { status: 200, body: { data: { total: data.total, items: data.items.map(diagnostic) } } };
+  }
   if (path.startsWith('/events/errors')) {
     if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
     return { status: 200, body: { data: { total: data.total, items: data.items.map((event) => {

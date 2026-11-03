@@ -14,6 +14,7 @@ export type Owner = {
 export type ApiVariables = {
   owner: Owner;
   requestId: string;
+  traceId: string;
 };
 
 export type ApiContext = Context<{ Bindings: Env; Variables: ApiVariables }>;
@@ -76,6 +77,14 @@ function validId(value: string | undefined): value is string {
   return value !== undefined && /^[A-Za-z0-9-]{1,128}$/.test(value);
 }
 
+function validStoreId(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{1,128}$/.test(value);
+}
+
+function validTraceId(value: string | undefined): boolean {
+  return value === undefined || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function validText(value: unknown, maximum: number, required = false): string | undefined | false {
   if (value === undefined || value === null) return required ? false : undefined;
   if (typeof value !== 'string') return false;
@@ -109,7 +118,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     if (!environmentAllowed(context)) return context.json({ error: { code: 'INVALID_ENVIRONMENT' }, requestId }, 422);
     const path = makePath(context);
     let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(path, await internalGet(context.env, path)); }
+    try { result = projectSource(path, await internalGet(context.env, path, context.get('traceId'))); }
     catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
 
     if (sensitive) {
@@ -147,6 +156,72 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
     return source(() => sourcePath('/events/errors', { storeId: context.req.query('storeId'), from: context.req.query('from'), to: context.req.query('to'), limit: String(pagination.limit), offset: String(pagination.offset) }), true)(context);
   });
+  const campaignRead = (path: (context: ApiContext) => string, targetId: (context: ApiContext) => string | null, action: 'campaign.read' | 'diagnostics.read') => async (context: ApiContext) => {
+    const requestId = context.get('requestId');
+    const sourcePathname = path(context);
+    let result: { status: number; body: Record<string, unknown> };
+    try { result = projectSource(sourcePathname, await internalGet(context.env, sourcePathname, context.get('traceId'))); }
+    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    try {
+      await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({
+        actorId: context.get('owner').id, action, targetId: targetId(context),
+        result: result.status === 200 ? 'success' : result.status === 404 ? 'not_found' : 'failure',
+        environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId,
+      });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 409 | 422 | 503);
+  };
+
+  app.get('/campaigns', requireOwner, (context) => {
+    const storeId = context.req.query('storeId');
+    const pagination = sourcePage(context);
+    if (!validStoreId(storeId)) return context.json({ error: { code: 'INVALID_STORE_ID' }, requestId: context.get('requestId') }, 422);
+    if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
+    return campaignRead(() => sourcePath(`/stores/${encodeURIComponent(storeId)}/campaigns`, { limit: String(pagination.limit), offset: String(pagination.offset) }), () => storeId, 'campaign.read')(context);
+  });
+  app.get('/campaigns/:id', requireOwner, (context) => {
+    const id = context.req.param('id');
+    const storeId = context.req.query('storeId');
+    if (!validId(id) || !validStoreId(storeId)) return context.json({ error: { code: 'NOT_FOUND' }, requestId: context.get('requestId') }, 404);
+    return campaignRead(() => `/stores/${encodeURIComponent(storeId)}/campaigns/${encodeURIComponent(id)}`, () => id, 'campaign.read')(context);
+  });
+  app.get('/diagnostics', requireOwner, (context) => {
+    const pagination = sourcePage(context);
+    const traceId = context.req.query('traceId');
+    const storeId = context.req.query('storeId');
+    const campaignId = context.req.query('campaignId');
+    const eventType = context.req.query('eventType');
+    const outcome = context.req.query('outcome');
+    const from = context.req.query('from');
+    const to = context.req.query('to');
+    if (!pagination || !validTraceId(traceId) || (storeId !== undefined && !validStoreId(storeId)) || (campaignId !== undefined && !validId(campaignId)) ||
+      (eventType !== undefined && !['shopline_api', 'worker_error', 'campaign_pause', 'campaign_read'].includes(eventType)) ||
+      (outcome !== undefined && !['success', 'failure', 'uncertain'].includes(outcome)) ||
+      (from !== undefined && Number.isNaN(Date.parse(from))) || (to !== undefined && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
+    return campaignRead(() => sourcePath('/diagnostics', { traceId, storeId, campaignId, eventType, outcome, from, to, limit: String(pagination.limit), offset: String(pagination.offset) }), () => traceId ?? storeId ?? campaignId ?? null, 'diagnostics.read')(context);
+  });
+  app.post('/campaigns/:id/pause', requireOwner, async (context) => {
+    const requestId = context.get('requestId');
+    const id = context.req.param('id');
+    if (!validId(id)) return context.json({ error: { code: 'NOT_FOUND' }, requestId }, 404);
+    if (!csrfAllowed(context)) return context.json({ error: { code: 'CSRF_REQUIRED' }, requestId }, 403);
+    const body = await context.req.json<Record<string, unknown>>().catch(() => ({} as Record<string, unknown>));
+    const storeId = body.storeId;
+    const reason = validText(body.reason, 300);
+    if (!validStoreId(storeId) || !Number.isInteger(body.expectedRevision) || (body.expectedRevision as number) < 1 || reason === false) return context.json({ error: { code: 'INVALID_INPUT' }, requestId }, 422);
+    const input = { expectedRevision: body.expectedRevision as number, ...(reason ? { reason } : {}) };
+    try {
+      await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({ actorId: context.get('owner').id, action: 'campaign.pause_requested', targetId: id, result: 'success', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    const path = `/stores/${encodeURIComponent(storeId)}/campaigns/${encodeURIComponent(id)}/pause`;
+    let result: { status: number; body: Record<string, unknown> };
+    try { result = projectSource(path, await internalPost(context.env, path, input, context.get('traceId'))); }
+    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    try {
+      await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({ actorId: context.get('owner').id, action: result.status === 200 ? 'campaign.pause_succeeded' : 'campaign.pause_failed', targetId: id, result: result.status === 200 ? 'success' : 'failure', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 409 | 422 | 503);
+  });
 
   app.get('/feedback', requireOwner, async (context) => {
     const pagination = sourcePage(context);
@@ -161,7 +236,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     if ((status && !feedbackStatuses.includes(status)) || (display && !feedbackDisplays.includes(display)) || (from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
     const path = sourcePath('/feedback', { query, store, status, display, from, to, limit: String(pagination.limit), offset: String(pagination.offset) });
     try {
-      const result = projectSource(path, await internalGet(context.env, path));
+      const result = projectSource(path, await internalGet(context.env, path, context.get('traceId')));
       return context.json({ ...result.body, requestId: context.get('requestId') }, result.status as 200 | 404 | 422 | 503);
     } catch { return context.json({ error: { code: 'SOURCE_UNAVAILABLE' }, requestId: context.get('requestId') }, 503); }
   });
@@ -171,7 +246,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const requestId = context.get('requestId');
     if (!validId(id)) return context.json({ error: { code: 'NOT_FOUND' }, requestId }, 404);
     let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(`/feedback/${id}`, await internalGet(context.env, `/feedback/${id}`)); }
+    try { result = projectSource(`/feedback/${id}`, await internalGet(context.env, `/feedback/${id}`, context.get('traceId'))); }
     catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
     try {
       await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({ actorId: context.get('owner').id, action: 'read.sensitive', targetId: id, result: result.status === 200 ? 'success' : result.status === 404 ? 'not_found' : 'failure', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
@@ -179,7 +254,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 422 | 503);
   });
 
-  const feedbackWrite = (action: 'feedback.status_changed' | 'feedback.reply_created' | 'feedback.comment_deleted', request: (env: Env, id: string, body: Record<string, unknown>, commentId?: string) => Promise<{ status: number; body: unknown }>, makePath: (id: string, commentId?: string) => string, validate: (body: Record<string, unknown>) => Record<string, unknown> | null) => async (context: ApiContext) => {
+  const feedbackWrite = (action: 'feedback.status_changed' | 'feedback.reply_created' | 'feedback.comment_deleted', request: (env: Env, id: string, body: Record<string, unknown>, commentId: string | undefined, traceId: string) => Promise<{ status: number; body: unknown }>, makePath: (id: string, commentId?: string) => string, validate: (body: Record<string, unknown>) => Record<string, unknown> | null) => async (context: ApiContext) => {
     const id = context.req.param('id');
     const commentId = context.req.param('commentId');
     const requestId = context.get('requestId');
@@ -190,7 +265,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     if (!input) return context.json({ error: { code: 'INVALID_INPUT' }, requestId }, 422);
     const path = makePath(id, commentId);
     let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(path, await request(context.env, id, input, commentId)); }
+    try { result = projectSource(path, await request(context.env, id, input, commentId, context.get('traceId'))); }
     catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
     try {
       await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({ actorId: context.get('owner').id, action, targetId: commentId ?? id, result: result.status >= 200 && result.status < 300 ? 'success' : result.status === 404 ? 'not_found' : 'failure', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
@@ -198,17 +273,17 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     return context.json({ ...result.body, requestId }, result.status as 200 | 201 | 404 | 422 | 503);
   };
 
-  app.patch('/feedback/:id/status', requireOwner, feedbackWrite('feedback.status_changed', (env, id, body) => internalPatch(env, `/feedback/${id}/status`, body), (id) => `/feedback/${id}/status`, (body) => {
+  app.patch('/feedback/:id/status', requireOwner, feedbackWrite('feedback.status_changed', (env, id, body, _commentId, traceId) => internalPatch(env, `/feedback/${id}/status`, body, traceId), (id) => `/feedback/${id}/status`, (body) => {
     if (typeof body.status !== 'string' || !feedbackStatuses.includes(body.status) || (body.hideFromMerchants !== undefined && typeof body.hideFromMerchants !== 'boolean') || (body.hideFromMerchants === true && body.status !== 'rejected')) return null;
     const note = validText(body.note, 500);
     if (note === false) return null;
     return { status: body.status, ...(body.hideFromMerchants === true ? { hideFromMerchants: true } : {}), ...(note ? { note } : {}) };
   }));
-  app.post('/feedback/:id/replies', requireOwner, feedbackWrite('feedback.reply_created', (env, id, body) => internalPost(env, `/feedback/${id}/replies`, body), (id) => `/feedback/${id}/replies`, (body) => {
+  app.post('/feedback/:id/replies', requireOwner, feedbackWrite('feedback.reply_created', (env, id, body, _commentId, traceId) => internalPost(env, `/feedback/${id}/replies`, body, traceId), (id) => `/feedback/${id}/replies`, (body) => {
     const content = validText(body.content, 5000, true);
     return content ? { content } : null;
   }));
-  app.delete('/feedback/:id/comments/:commentId', requireOwner, feedbackWrite('feedback.comment_deleted', (env, id, body, commentId) => internalDelete(env, `/feedback/${id}/comments/${commentId}`, body), (id, commentId) => `/feedback/${id}/comments/${commentId}`, (body) => {
+  app.delete('/feedback/:id/comments/:commentId', requireOwner, feedbackWrite('feedback.comment_deleted', (env, id, body, commentId, traceId) => internalDelete(env, `/feedback/${id}/comments/${commentId}`, body, traceId), (id, commentId) => `/feedback/${id}/comments/${commentId}`, (body) => {
     const reason = validText(body.reason, 500);
     return reason === false ? null : reason ? { reason } : {};
   }));

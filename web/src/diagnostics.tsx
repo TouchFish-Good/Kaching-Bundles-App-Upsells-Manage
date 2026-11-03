@@ -1,0 +1,25 @@
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, RefreshCw, Search } from 'lucide-react';
+import { api, ApiError, type Diagnostic, type List } from './api';
+import { absoluteTime } from './state';
+
+function useDiagnostics(path: string) {
+  const [data, setData] = useState<List<Diagnostic> | null>(null); const [error, setError] = useState<ApiError | null>(null); const [loading, setLoading] = useState(true); const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setLoading(true); setError(null);
+    api<List<Diagnostic>>(path)
+      .then((next) => { if (live) setData(next); })
+      .catch((cause) => { if (live) setError(cause instanceof ApiError ? cause : new ApiError(503, 'SOURCE_UNAVAILABLE')); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [path, revision]);
+  return { data, error, loading, retry: () => setRevision((value) => value + 1) };
+}
+
+export function DiagnosticsPage() {
+  const [params, setParams] = useSearchParams(); const [trace, setTrace] = useState(params.get('traceId') || ''); const query = new URLSearchParams({ traceId: params.get('traceId') || '', storeId: params.get('storeId') || '', campaignId: params.get('campaignId') || '', outcome: params.get('outcome') || '', from: params.get('from') || '', to: params.get('to') || '', limit: '100', offset: '0' }); const resource = useDiagnostics(`/diagnostics?${query}`); const update = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key)); setParams(next); };
+  return <><div className="page-title"><div><h1>诊断</h1><p>D1 业务事件保留 30 天；原始 Worker 日志由 Cloudflare 日志投递策略单独保留。</p></div></div><div className="diagnostic-toolbar"><form className="search-box" onSubmit={(event) => { event.preventDefault(); update({ traceId: trace.trim() }); }}><Search size={17} /><label className="sr-only" htmlFor="trace-id">Trace ID</label><input id="trace-id" value={trace} onChange={(event) => setTrace(event.target.value)} placeholder="按应用 Trace ID 查询" /><button type="submit" aria-label="查询 Trace ID" title="查询"><ArrowRight size={17} /></button></form><label className="field-inline">商家 ID<input value={params.get('storeId') || ''} onChange={(event) => update({ storeId: event.target.value })} placeholder="商家 ID" /></label><label className="field-inline">活动 ID<input value={params.get('campaignId') || ''} onChange={(event) => update({ campaignId: event.target.value })} placeholder="活动 ID" /></label><label className="select-label">结果<select value={params.get('outcome') || ''} onChange={(event) => update({ outcome: event.target.value })}><option value="">全部结果</option><option value="failure">失败</option><option value="uncertain">待确认</option><option value="success">成功</option></select></label></div>
+    {resource.loading ? <div className="loading-panel" role="status"><div className="skeleton-line wide" /></div> : resource.error ? <div className="state-block" role="alert"><AlertTriangle size={23} /><h2>诊断数据暂不可用</h2><p>{resource.error.code}</p><button className="button" onClick={resource.retry}><RefreshCw size={15} />重试</button></div> : resource.data?.items.length ? <><div className="table-wrap"><table className="diagnostic-table"><thead><tr><th>发生时间</th><th>结果</th><th>商家 / 活动</th><th>事件</th><th>Trace ID</th><th>SHOPLINE 请求 ID</th><th>状态 / 耗时</th></tr></thead><tbody>{resource.data.items.map((item) => <tr key={item.id}><td>{absoluteTime(item.occurredAt)}</td><td><span className={`badge diagnostic-${item.outcome}`}>{item.outcome === 'uncertain' ? '待确认' : item.outcome === 'failure' ? '失败' : '成功'}</span></td><td>{item.storeId ? <Link className="table-link mono" to={`/campaigns?storeId=${encodeURIComponent(item.storeId)}`}>{item.storeId}</Link> : '—'}<small className="cell-sub mono">{item.campaignId || '无活动'}</small></td><td>{item.eventType}<small className="cell-sub">{item.errorCode || item.upstreamPath || '—'}</small></td><td className="mono">{item.traceId}</td><td className="mono">{item.upstreamRequestId || '—'}</td><td>{item.upstreamStatus || '—'}{item.durationMs !== null ? <small className="cell-sub">{item.durationMs} ms</small> : null}</td></tr>)}</tbody></table></div><div className="mobile-records">{resource.data.items.map((item) => <article className="mobile-record" key={item.id}><div><strong>{item.eventType}</strong><span className={`badge diagnostic-${item.outcome}`}>{item.outcome === 'uncertain' ? '待确认' : item.outcome === 'failure' ? '失败' : '成功'}</span></div><small>{absoluteTime(item.occurredAt)} · {item.errorCode || item.upstreamPath || '无错误摘要'}</small><span className="mono">{item.traceId}</span></article>)}</div></> : <div className="empty-state"><strong>没有匹配的诊断事件</strong><p>可按 Trace ID、商家 ID、活动 ID 或处理结果筛选。</p></div>}</>;
+}

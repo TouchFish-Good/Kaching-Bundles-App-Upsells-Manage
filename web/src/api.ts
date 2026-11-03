@@ -20,6 +20,18 @@ export type FeedbackDetail = Feedback & {
   replies: { id: string; authorLabel: '多件折扣'; isOfficial: true; content: string; createdAt: string }[];
 };
 export type FeedbackList = { items: Feedback[]; total: number; offset: number };
+export type CampaignStatus = 'draft' | 'active' | 'scheduled' | 'paused' | 'ended';
+export type Campaign = {
+  id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
+  scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; collectionIds?: string[]; resolvedProductIds?: string[]; excludedProductIds: string[] };
+  tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; recommended?: boolean; label?: string; subtitle?: string; tag?: string }[];
+};
+export type DiagnosticOutcome = 'success' | 'failure' | 'uncertain';
+export type Diagnostic = {
+  id: string; traceId: string; workerName: string; storeId: string | null; shopHandle: string | null; campaignId: string | null;
+  eventType: string; outcome: DiagnosticOutcome; upstreamService: string | null; upstreamPath: string | null; upstreamStatus: number | null;
+  upstreamRequestId: string | null; errorCode: string | null; durationMs: number | null; occurredAt: string;
+};
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string) { super(code); }

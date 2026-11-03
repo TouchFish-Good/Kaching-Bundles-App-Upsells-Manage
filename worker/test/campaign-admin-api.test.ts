@@ -142,3 +142,15 @@ it('accepts platform-delete as a distinct diagnostic event filter', async () => 
   expect(response.status).toBe(200);
   expect(new URL((fetch.mock.calls[0][0] as Request).url).searchParams.get('eventType')).toBe('campaign_platform_delete');
 });
+
+it('treats empty diagnostic filter values as absent', async () => {
+  const fetch = vi.fn(async (_request: Request) => new Response(JSON.stringify({ data: { total: 0, items: [] } })));
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+
+  const response = await loggedInFetch('/admin-api/v1/diagnostics?traceId=&storeId=&campaignId=&outcome=&from=&to=&limit=100&offset=0');
+
+  expect(response.status).toBe(200);
+  const forwarded = new URL((fetch.mock.calls[0][0] as Request).url);
+  expect(forwarded.searchParams.has('traceId')).toBe(false);
+  expect(forwarded.searchParams.has('storeId')).toBe(false);
+});

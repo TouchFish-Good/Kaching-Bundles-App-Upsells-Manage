@@ -194,13 +194,14 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
   });
   app.get('/diagnostics', requireOwner, (context) => {
     const pagination = sourcePage(context);
-    const traceId = context.req.query('traceId');
-    const storeId = context.req.query('storeId');
-    const campaignId = context.req.query('campaignId');
-    const eventType = context.req.query('eventType');
-    const outcome = context.req.query('outcome');
-    const from = context.req.query('from');
-    const to = context.req.query('to');
+    const value = (key: string) => context.req.query(key) || undefined;
+    const traceId = value('traceId');
+    const storeId = value('storeId');
+    const campaignId = value('campaignId');
+    const eventType = value('eventType');
+    const outcome = value('outcome');
+    const from = value('from');
+    const to = value('to');
     if (!pagination || !validTraceId(traceId) || (storeId !== undefined && !validStoreId(storeId)) || (campaignId !== undefined && !validId(campaignId)) ||
       (eventType !== undefined && !['shopline_api', 'worker_error', 'campaign_pause', 'campaign_platform_delete', 'campaign_read'].includes(eventType)) ||
       (outcome !== undefined && !['success', 'failure', 'uncertain'].includes(outcome)) ||

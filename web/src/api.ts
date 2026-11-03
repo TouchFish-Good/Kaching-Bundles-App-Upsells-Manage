@@ -20,9 +20,11 @@ export type FeedbackDetail = Feedback & {
   replies: { id: string; authorLabel: '多件折扣'; isOfficial: true; content: string; createdAt: string }[];
 };
 export type FeedbackList = { items: Feedback[]; total: number; offset: number };
+export type FeedbackComment = { id: string; feedbackId: string; feedbackTitle: string; feedbackStatus: FeedbackStatus; storeId: string; authorHandle: string; isAnonymous: boolean; content: string; createdAt: string; isDeleted: boolean; deletedAt: string | null; deletedBy: string | null; deletionReason: string | null };
 export type CampaignStatus = 'draft' | 'active' | 'scheduled' | 'paused' | 'ended';
 export type Campaign = {
   id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
+  storeId?: string; shopHandle?: string; platformDiscountState: 'active' | 'paused' | 'removed' | null;
   scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; collectionIds?: string[]; resolvedProductIds?: string[]; excludedProductIds: string[] };
   tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; recommended?: boolean; label?: string; subtitle?: string; tag?: string }[];
 };

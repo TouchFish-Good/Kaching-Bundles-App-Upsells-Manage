@@ -175,9 +175,16 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
   app.get('/campaigns', requireOwner, (context) => {
     const storeId = context.req.query('storeId');
     const pagination = sourcePage(context);
-    if (!validStoreId(storeId)) return context.json({ error: { code: 'INVALID_STORE_ID' }, requestId: context.get('requestId') }, 422);
     if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
-    return campaignRead(() => sourcePath(`/stores/${encodeURIComponent(storeId)}/campaigns`, { limit: String(pagination.limit), offset: String(pagination.offset) }), () => storeId, 'campaign.read')(context);
+    if (storeId !== undefined && !validStoreId(storeId)) return context.json({ error: { code: 'INVALID_STORE_ID' }, requestId: context.get('requestId') }, 422);
+    const query = context.req.query('query');
+    const status = context.req.query('status');
+    if (query && query.length > 100) return context.json({ error: { code: 'INVALID_QUERY' }, requestId: context.get('requestId') }, 422);
+    if (status && !['draft', 'active', 'scheduled', 'paused', 'ended'].includes(status)) return context.json({ error: { code: 'INVALID_STATUS' }, requestId: context.get('requestId') }, 422);
+    const path = storeId
+      ? sourcePath(`/stores/${encodeURIComponent(storeId)}/campaigns`, { query, status, limit: String(pagination.limit), offset: String(pagination.offset) })
+      : sourcePath('/campaigns', { query, status, limit: String(pagination.limit), offset: String(pagination.offset) });
+    return campaignRead(() => path, () => storeId ?? null, 'campaign.read')(context);
   });
   app.get('/campaigns/:id', requireOwner, (context) => {
     const id = context.req.param('id');
@@ -222,6 +229,27 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
     return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 409 | 422 | 503);
   });
+  const campaignPlatformAction = (operation: 'activate' | 'platform-delete', auditAction: 'campaign.activate' | 'campaign.platform_deleted') => async (context: ApiContext) => {
+    const requestId = context.get('requestId');
+    const id = context.req.param('id');
+    if (!validId(id)) return context.json({ error: { code: 'NOT_FOUND' }, requestId }, 404);
+    if (!csrfAllowed(context)) return context.json({ error: { code: 'CSRF_REQUIRED' }, requestId }, 403);
+    const body = await context.req.json<Record<string, unknown>>().catch(() => ({} as Record<string, unknown>));
+    const storeId = body.storeId;
+    const reason = validText(body.reason, 300);
+    if (!validStoreId(storeId) || !Number.isInteger(body.expectedRevision) || (body.expectedRevision as number) < 1 || reason === false) return context.json({ error: { code: 'INVALID_INPUT' }, requestId }, 422);
+    const input = { expectedRevision: body.expectedRevision as number, ...(reason ? { reason } : {}) };
+    const path = `/stores/${encodeURIComponent(storeId)}/campaigns/${encodeURIComponent(id)}/${operation}`;
+    let result: { status: number; body: Record<string, unknown> };
+    try { result = projectSource(path, await internalPost(context.env, path, input, context.get('traceId'))); }
+    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    try {
+      await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({ actorId: context.get('owner').id, action: auditAction, targetId: id, result: result.status === 200 ? 'success' : 'failure', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 409 | 422 | 503);
+  };
+  app.post('/campaigns/:id/activate', requireOwner, campaignPlatformAction('activate', 'campaign.activate'));
+  app.post('/campaigns/:id/platform-delete', requireOwner, campaignPlatformAction('platform-delete', 'campaign.platform_deleted'));
 
   app.get('/feedback', requireOwner, async (context) => {
     const pagination = sourcePage(context);
@@ -231,10 +259,26 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const display = context.req.query('display');
     const from = context.req.query('from');
     const to = context.req.query('to');
+    const sort = context.req.query('sort') ?? 'newest';
+    const replied = context.req.query('replied');
     if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
     if ((query && query.length > 100) || (store && store.length > 100)) return context.json({ error: { code: 'INVALID_QUERY' }, requestId: context.get('requestId') }, 422);
-    if ((status && !feedbackStatuses.includes(status)) || (display && !feedbackDisplays.includes(display)) || (from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
-    const path = sourcePath('/feedback', { query, store, status, display, from, to, limit: String(pagination.limit), offset: String(pagination.offset) });
+    if ((status && !feedbackStatuses.includes(status)) || (display && !feedbackDisplays.includes(display)) || !['newest', 'comments', 'votes'].includes(sort) || (replied !== undefined && replied !== '1') || (from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
+    const path = sourcePath('/feedback', { query, store, status, display, from, to, sort, replied, limit: String(pagination.limit), offset: String(pagination.offset) });
+    try {
+      const result = projectSource(path, await internalGet(context.env, path, context.get('traceId')));
+      return context.json({ ...result.body, requestId: context.get('requestId') }, result.status as 200 | 404 | 422 | 503);
+    } catch { return context.json({ error: { code: 'SOURCE_UNAVAILABLE' }, requestId: context.get('requestId') }, 503); }
+  });
+
+  app.get('/feedback-comments', requireOwner, async (context) => {
+    const pagination = sourcePage(context);
+    const query = context.req.query('query');
+    const store = context.req.query('store');
+    const from = context.req.query('from');
+    const to = context.req.query('to');
+    if (!pagination || (query && query.length > 100) || (store && store.length > 100) || (from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
+    const path = sourcePath('/feedback-comments', { query, store, from, to, limit: String(pagination.limit), offset: String(pagination.offset) });
     try {
       const result = projectSource(path, await internalGet(context.env, path, context.get('traceId')));
       return context.json({ ...result.body, requestId: context.get('requestId') }, result.status as 200 | 404 | 422 | 503);

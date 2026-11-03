@@ -38,9 +38,9 @@ export function OverviewPage({ admin }: { admin: Admin }) {
   return <><PageTitle title="Overview" note="安装、活动和异常概况" action={<span className="scope-pill">{admin.environment}</span>} />
     <Status {...resource}>{resource.data && <><section className="metric-band" aria-label="关键指标">
       <MetricCell title="已安装店铺" metric={resource.data.installedStoreCount} href="/stores?status=installed" />
-      <MetricCell title="有效活动" metric={resource.data.activeBundleCount} href="/bundles" />
+      <MetricCell title="有效活动" metric={resource.data.activeBundleCount} href="/campaigns?status=active" />
       <MetricCell title="最近 24 小时错误" metric={resource.data.errorCount} href="/errors" />
-    </section><section className="overview-section"><div className="section-heading"><h2>需要关注</h2><span>按可用数据源更新</span></div><div className="overview-links"><Link to="/stores"><span>商家安装状态</span><ArrowRight size={17} /></Link><Link to="/bundles"><span>Bundle 活动数据</span><ArrowRight size={17} /></Link><Link to="/errors"><span>应用错误记录</span><ArrowRight size={17} /></Link></div></section></>}</Status>
+    </section><section className="overview-section"><div className="section-heading"><h2>需要关注</h2><span>按可用数据源更新</span></div><div className="overview-links"><Link to="/stores"><span>商家安装状态</span><ArrowRight size={17} /></Link><Link to="/campaigns"><span>活动与平台状态</span><ArrowRight size={17} /></Link><Link to="/errors"><span>应用错误记录</span><ArrowRight size={17} /></Link></div></section></>}</Status>
   </>;
 }
 
@@ -85,7 +85,7 @@ export function StoreDetailPage({ admin }: { admin: Admin }) {
     <Status {...resource}>{resource.data && <><PageTitle title={resource.data.handle} note="商家安装与授权详情" action={<span className={`badge ${resource.data.status}`}>{resource.data.status === 'installed' ? '已安装' : '已卸载'}</span>} />
       <section className="detail-section"><h2>店铺身份</h2><dl className="detail-grid"><div><dt>稳定 ID</dt><dd className="mono copy-value">{resource.data.storeId}<CopyButton value={resource.data.storeId} label="店铺 ID" /></dd></div><div><dt>环境</dt><dd>{admin.environment}</dd></div><div><dt>授权范围</dt><dd>{resource.data.scope || '未知'}</dd></div><div><dt>最近同步</dt><dd>{absoluteTime(resource.data.updatedAt)}</dd></div></dl></section>
       <section className="detail-section"><h2>安装周期</h2>{resource.data.installations?.length ? <ol className="timeline">{resource.data.installations.map((cycle, index) => <li key={`${cycle.installedAt}-${index}`}><strong>安装于 {absoluteTime(cycle.installedAt)}</strong><span>{cycle.uninstalledAt ? `卸载于 ${absoluteTime(cycle.uninstalledAt)}` : '当前安装周期'}</span></li>)}</ol> : <p className="muted">暂无安装周期记录。</p>}</section>
-      <section className="detail-section"><h2>Bundle 活动</h2><div className="source-callout"><ServerOff size={19} /><div><strong>活动数据源未接入</strong><p>当前暂无可信的活动记录来源。</p></div></div></section>
+      <section className="detail-section"><h2>活动</h2><Link className="button secondary" to={`/campaigns?storeId=${encodeURIComponent(storeId)}`}>查看该商家的活动 <ArrowRight size={15} /></Link></section>
     </>}</Status>
   </>;
 }

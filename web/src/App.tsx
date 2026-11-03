@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, Package, ShieldCheck, Store as StoreIcon, Wrench, X } from 'lucide-react';
+import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, ShieldCheck, Store as StoreIcon, Wrench, X } from 'lucide-react';
 import { api, ApiError, type Admin } from './api';
-import { FeedbackDetailPage, FeedbackPage } from './feedback';
-import { AuditPage, BundlesPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
+import { FeedbackCommentsPage, FeedbackDetailPage, FeedbackPage } from './feedback';
+import { AuditPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
 import { CampaignDetailPage, CampaignsPage } from './campaigns';
 import { DiagnosticsPage } from './diagnostics';
 
@@ -41,11 +41,11 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
   const items = [
     { to: '/overview', label: 'Overview', icon: LayoutDashboard },
     { to: '/stores', label: 'Stores', icon: StoreIcon },
-    { to: '/bundles', label: 'Bundles', icon: Package },
     { to: '/campaigns', label: '活动与排障', icon: Wrench },
     { to: '/diagnostics', label: '诊断', icon: Activity },
     { to: '/errors', label: 'Errors', icon: Activity },
     { to: '/feedback', label: '需求与建议', icon: MessageSquareText },
+    { to: '/feedback-comments', label: '评论管理', icon: MessageSquareText },
     { to: '/audit', label: 'Audit', icon: ClipboardList },
   ];
   return <div className="shell">
@@ -62,12 +62,13 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
       <Route path="/overview" element={<OverviewPage admin={admin} />} />
       <Route path="/stores" element={<StoresPage />} />
       <Route path="/stores/:storeId" element={<StoreDetailPage admin={admin} />} />
-      <Route path="/bundles" element={<BundlesPage />} />
+      <Route path="/bundles" element={<Navigate to="/campaigns" replace />} />
       <Route path="/campaigns" element={<CampaignsPage />} />
       <Route path="/campaigns/:id" element={<CampaignDetailPage admin={admin} />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
       <Route path="/feedback" element={<FeedbackPage />} />
+      <Route path="/feedback-comments" element={<FeedbackCommentsPage admin={admin} />} />
       <Route path="/feedback/:id" element={<FeedbackDetailPage admin={admin} />} />
       <Route path="/audit" element={<AuditPage />} />
       <Route path="/" element={<Navigate to="/overview" replace />} />

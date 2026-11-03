@@ -88,6 +88,19 @@ it('maps a malformed merchant campaign response to SOURCE_UNAVAILABLE', async ()
   await expect(response.json()).resolves.toMatchObject({ error: { code: 'SOURCE_UNAVAILABLE' } });
 });
 
+it('reads global campaigns without exposing SHOPLINE platform IDs', async () => {
+  env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
+    data: { total: 1, items: [{ id: 'campaign-1', name: '秋季多件折扣', storeId: '42', shopHandle: 'alpha', status: 'active', platformDiscountState: 'active', revision: 4, scope: { kind: 'products', productIds: ['product-1'], excludedProductIds: [] }, tiers: [], startsAt: null, endsAt: null, pauseReason: null, updatedAt: '2026-11-03T00:00:00.000Z', platformDiscountId: 'secret-platform-id' }] },
+  })) } as unknown as Fetcher;
+
+  const response = await loggedInFetch('/admin-api/v1/campaigns?limit=25&offset=0');
+
+  expect(response.status).toBe(200);
+  const payload = JSON.stringify(await response.json());
+  expect(payload).toContain('platformDiscountState');
+  expect(payload).not.toContain('secret-platform-id');
+});
+
 it('projects diagnostics through an allowlist and never returns upstream secrets', async () => {
   env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
     data: { total: 1, items: [{ id: 'event-1', traceId: '550e8400-e29b-41d4-a716-446655440000', workerName: 'shopline-quantity-breaks', storeId: '42', shopHandle: 'alpha', campaignId: 'campaign-1', eventType: 'campaign_pause', outcome: 'uncertain', upstreamService: 'SHOPLINE', upstreamPath: '/sales/discount_apps/1.json', upstreamStatus: 504, upstreamRequestId: 'shopline-1', errorCode: 'UPSTREAM_OUTCOME_UNCERTAIN', durationMs: 10, occurredAt: '2026-11-03T00:00:00.000Z', accessToken: 'secret' }] },

@@ -111,3 +111,34 @@ it('projects diagnostics through an allowlist and never returns upstream secrets
   expect(response.status).toBe(200);
   expect(JSON.stringify(await response.json())).not.toContain('secret');
 });
+
+it('preserves only the safe coverage conflict needed by the Owner UI', async () => {
+  env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
+    error: { code: 'CAMPAIGN_SCOPE_CONFLICT' },
+    conflicts: [{ campaignId: 'campaign-2', campaignName: '冬季活动', scopeKind: 'collections', overlap: { type: 'collections', ids: ['collection-1'], names: ['冬季精选'] }, platformDiscountId: 'secret-platform-id' }],
+  }), { status: 409 }) } as unknown as Fetcher;
+  const { cookie, csrfToken } = await ownerSession();
+
+  const response = await worker.fetch(request('/admin-api/v1/campaigns/campaign-1/activate', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+    body: JSON.stringify({ storeId: '42', expectedRevision: 4 }),
+  }), env, context);
+
+  expect(response.status).toBe(409);
+  const payload = JSON.stringify(await response.json());
+  expect(payload).toContain('冬季精选');
+  expect(payload).not.toContain('secret-platform-id');
+});
+
+it('accepts platform-delete as a distinct diagnostic event filter', async () => {
+  const fetch = vi.fn(async (internalRequest: Request) => new Response(JSON.stringify({
+    data: { total: 0, items: [] },
+  })));
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+
+  const response = await loggedInFetch('/admin-api/v1/diagnostics?eventType=campaign_platform_delete&limit=25&offset=0');
+
+  expect(response.status).toBe(200);
+  expect(new URL((fetch.mock.calls[0][0] as Request).url).searchParams.get('eventType')).toBe('campaign_platform_delete');
+});

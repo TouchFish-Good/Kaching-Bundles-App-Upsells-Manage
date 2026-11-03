@@ -202,7 +202,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const from = context.req.query('from');
     const to = context.req.query('to');
     if (!pagination || !validTraceId(traceId) || (storeId !== undefined && !validStoreId(storeId)) || (campaignId !== undefined && !validId(campaignId)) ||
-      (eventType !== undefined && !['shopline_api', 'worker_error', 'campaign_pause', 'campaign_read'].includes(eventType)) ||
+      (eventType !== undefined && !['shopline_api', 'worker_error', 'campaign_pause', 'campaign_platform_delete', 'campaign_read'].includes(eventType)) ||
       (outcome !== undefined && !['success', 'failure', 'uncertain'].includes(outcome)) ||
       (from !== undefined && Number.isNaN(Date.parse(from))) || (to !== undefined && Number.isNaN(Date.parse(to)))) return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
     return campaignRead(() => sourcePath('/diagnostics', { traceId, storeId, campaignId, eventType, outcome, from, to, limit: String(pagination.limit), offset: String(pagination.offset) }), () => traceId ?? storeId ?? campaignId ?? null, 'diagnostics.read')(context);

@@ -36,7 +36,7 @@ export type Diagnostic = {
 };
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string) { super(code); }
+  constructor(public status: number, public code: string, public details: unknown = null) { super(code); }
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -46,6 +46,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, body.error?.code || 'REQUEST_FAILED');
+  if (!response.ok) throw new ApiError(response.status, body.error?.code || 'REQUEST_FAILED', body);
   return body.data as T;
 }

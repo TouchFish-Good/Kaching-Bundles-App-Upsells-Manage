@@ -21,3 +21,14 @@ export const commentManagementHeaders = ['评论', '商家', '是否匿名', '�
 export function commentSourceLabel(comment) {
   return comment.feedbackTitle;
 }
+
+export function commentFiltersPath({ query, store, from, to, offset = '0' }) {
+  const params = new URLSearchParams();
+  if (query) params.set('query', query);
+  if (store) params.set('store', store);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  params.set('limit', '25');
+  params.set('offset', offset);
+  return `/feedback-comments?${params}`;
+}

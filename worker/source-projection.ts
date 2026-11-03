@@ -56,8 +56,22 @@ function metric(value: unknown): Record<string, string | number | null> {
   return { value: value.value, asOf: value.asOf, sourceStatus: value.sourceStatus as string };
 }
 
-function sourceError(status: number): Projection {
+function campaignConflicts(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) throw new Error('INVALID_SOURCE');
+  return value.map((conflict) => {
+    if (!record(conflict) || !text(conflict.campaignId) || !text(conflict.campaignName) || !text(conflict.scopeKind) ||
+      !['products', 'collections'].includes(conflict.scopeKind) || !record(conflict.overlap) || !text(conflict.overlap.type) ||
+      !['products', 'collections'].includes(conflict.overlap.type)) throw new Error('INVALID_SOURCE');
+    return { campaignId: conflict.campaignId, campaignName: conflict.campaignName, scopeKind: conflict.scopeKind,
+      overlap: { type: conflict.overlap.type, ids: textList(conflict.overlap.ids), names: textList(conflict.overlap.names) } };
+  });
+}
+
+function sourceError(status: number, body: unknown): Projection {
   if (status === 404) return { status: 404, body: { error: { code: 'NOT_FOUND' } } };
+  if (status === 409 && record(body) && record(body.error) && body.error.code === 'CAMPAIGN_SCOPE_CONFLICT') {
+    return { status: 409, body: { error: { code: 'CAMPAIGN_SCOPE_CONFLICT' }, conflicts: campaignConflicts(body.conflicts) } };
+  }
   if (status === 409) return { status: 409, body: { error: { code: 'CAMPAIGN_CONFLICT' } } };
   if (status === 422) return { status: 422, body: { error: { code: 'INVALID_SOURCE_QUERY' } } };
   return { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } };
@@ -117,7 +131,7 @@ function feedbackWrite(value: unknown): Record<string, unknown> {
 
 const campaignStatuses = ['draft', 'active', 'scheduled', 'paused', 'ended'];
 const campaignDiscountTypes = ['none', 'percentage', 'fixed_amount', 'fixed_price', 'bundle_fixed_amount', 'bundle_fixed_price'];
-const diagnosticEventTypes = ['shopline_api', 'worker_error', 'campaign_pause', 'campaign_read'];
+const diagnosticEventTypes = ['shopline_api', 'worker_error', 'campaign_pause', 'campaign_platform_delete', 'campaign_read'];
 const diagnosticOutcomes = ['success', 'failure', 'uncertain'];
 
 function campaignScope(value: unknown): Record<string, unknown> {
@@ -165,7 +179,7 @@ function diagnostic(value: unknown): Record<string, unknown> {
 }
 
 export function projectSource(path: string, result: SourceResult): Projection {
-  if (result.status !== 200) return sourceError(result.status);
+  if (result.status !== 200) return sourceError(result.status, result.body);
   if (!record(result.body) || !record(result.body.data)) throw new Error('INVALID_SOURCE');
   const data = result.body.data;
 

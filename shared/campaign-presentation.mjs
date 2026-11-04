@@ -15,3 +15,12 @@ export function coverageConflictNotice(conflicts) {
   const names = Array.isArray(conflict?.overlap?.names) && conflict.overlap.names.length ? conflict.overlap.names.join('、') : '重叠项';
   return `活动范围冲突：与「${conflict?.campaignName || '现有活动'}」的${kind}重叠（${names}）。未执行平台操作。`;
 }
+
+export function formatDiagnosticResponseBody(body) {
+  if (typeof body !== 'string') return null;
+  try { return JSON.stringify(JSON.parse(body), null, 2); } catch { return null; }
+}
+
+export function canViewDiagnosticResponse(body) {
+  return formatDiagnosticResponseBody(body) !== null;
+}

@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, ArrowRight, Copy, RefreshCw, Search, ServerOff } from 'lucide-react';
 import { api, ApiError, type Admin, type AuditEvent, type ErrorEvent, type List, type Overview, type Store } from './api';
 import { absoluteTime, metricDisplay, sourceMessage, type Metric } from './state.ts';
+import { RefreshButton } from './refresh-button';
 
 function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -35,7 +36,7 @@ function MetricCell({ title, metric, href }: { title: string; metric: Metric; hr
 
 export function OverviewPage({ admin }: { admin: Admin }) {
   const resource = useResource<Overview>('/overview');
-  return <><PageTitle title="Overview" note="安装、活动和异常概况" action={<span className="scope-pill">{admin.environment}</span>} />
+  return <><PageTitle title="Overview" note="安装、活动和异常概况" action={<div className="page-actions"><span className="scope-pill">{admin.environment}</span><RefreshButton loading={resource.loading} onRefresh={resource.retry} /></div>} />
     <Status {...resource}>{resource.data && <><section className="metric-band" aria-label="关键指标">
       <MetricCell title="已安装店铺" metric={resource.data.installedStoreCount} href="/stores?status=installed" />
       <MetricCell title="有效活动" metric={resource.data.activeBundleCount} href="/campaigns?status=active" />
@@ -62,7 +63,7 @@ export function StoresPage() {
   const path = `/stores?${new URLSearchParams({ query, status, offset: String(offset), limit: '25' })}`;
   const resource = useResource<List<Store>>(path);
   const update = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key)); if (!('offset' in values)) next.delete('offset'); setParams(next); };
-  return <><PageTitle title="Stores" note="按稳定店铺 ID 核查授权与安装周期" />
+  return <><PageTitle title="Stores" note="按稳定店铺 ID 核查授权与安装周期" action={<RefreshButton loading={resource.loading} onRefresh={resource.retry} />}/>
     <div className="toolbar"><form className="search-box" onSubmit={(event) => { event.preventDefault(); update({ query: draft }); }}><Search size={17} aria-hidden="true" /><label className="sr-only" htmlFor="store-query">搜索店铺</label><input id="store-query" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="店铺名称、域名或 ID" /><button type="submit" aria-label="搜索" title="搜索"><ArrowRight size={17} /></button></form>
       <label className="select-label">安装状态<select value={status} onChange={(event) => update({ status: event.target.value })}><option value="all">全部</option><option value="installed">已安装</option><option value="uninstalled">已卸载</option></select></label></div>
     <Status {...resource}>{resource.data && (resource.data.items.length ? <><div className="table-wrap"><table><thead><tr><th>店铺</th><th>稳定 ID</th><th>安装状态</th><th>安装时间</th><th>最近更新</th><th className="action-col">查看</th></tr></thead><tbody>{resource.data.items.map((store) => <tr key={store.storeId}><td><Link className="table-link" to={`/stores/${encodeURIComponent(store.storeId)}?return=${encodeURIComponent(params.toString())}`}>{store.handle}</Link></td><td className="mono">{store.storeId}</td><td><span className={`badge ${store.status}`}>{store.status === 'installed' ? '已安装' : '已卸载'}</span></td><td>{absoluteTime(store.installedAt)}</td><td>{absoluteTime(store.updatedAt)}</td><td><Link className="row-action" to={`/stores/${encodeURIComponent(store.storeId)}?return=${encodeURIComponent(params.toString())}`}>详情 <ArrowRight size={14} /></Link></td></tr>)}</tbody></table></div>
@@ -82,7 +83,7 @@ export function StoreDetailPage({ admin }: { admin: Admin }) {
   const returnQuery = params.get('return') || '';
   const resource = useResource<Store>(`/stores/${encodeURIComponent(storeId)}`);
   return <><Link className="back-link" to={`/stores${returnQuery ? `?${returnQuery}` : ''}`}><ArrowLeft size={16} />返回 Stores</Link>
-    <Status {...resource}>{resource.data && <><PageTitle title={resource.data.handle} note="商家安装与授权详情" action={<span className={`badge ${resource.data.status}`}>{resource.data.status === 'installed' ? '已安装' : '已卸载'}</span>} />
+    <Status {...resource}>{resource.data && <><PageTitle title={resource.data.handle} note="商家安装与授权详情" action={<div className="page-actions"><span className={`badge ${resource.data.status}`}>{resource.data.status === 'installed' ? '已安装' : '已卸载'}</span><RefreshButton loading={resource.loading} onRefresh={resource.retry} /></div>} />
       <section className="detail-section"><h2>店铺身份</h2><dl className="detail-grid"><div><dt>稳定 ID</dt><dd className="mono copy-value">{resource.data.storeId}<CopyButton value={resource.data.storeId} label="店铺 ID" /></dd></div><div><dt>环境</dt><dd>{admin.environment}</dd></div><div><dt>授权范围</dt><dd>{resource.data.scope || '未知'}</dd></div><div><dt>最近同步</dt><dd>{absoluteTime(resource.data.updatedAt)}</dd></div></dl></section>
       <section className="detail-section"><h2>安装周期</h2>{resource.data.installations?.length ? <ol className="timeline">{resource.data.installations.map((cycle, index) => <li key={`${cycle.installedAt}-${index}`}><strong>安装于 {absoluteTime(cycle.installedAt)}</strong><span>{cycle.uninstalledAt ? `卸载于 ${absoluteTime(cycle.uninstalledAt)}` : '当前安装周期'}</span></li>)}</ol> : <p className="muted">暂无安装周期记录。</p>}</section>
       <section className="detail-section"><h2>活动</h2><Link className="button secondary" to={`/campaigns?storeId=${encodeURIComponent(storeId)}`}>查看该商家的活动 <ArrowRight size={15} /></Link></section>
@@ -92,7 +93,7 @@ export function StoreDetailPage({ admin }: { admin: Admin }) {
 
 export function BundlesPage() {
   const resource = useResource('/bundles');
-  return <><PageTitle title="Bundles" note="跨店查看本应用创建的活动" />
+  return <><PageTitle title="Bundles" note="跨店查看本应用创建的活动" action={<RefreshButton loading={resource.loading} onRefresh={resource.retry} />}/>
     {resource.loading ? <Status {...resource}>{null}</Status> : resource.error?.code === 'SOURCE_UNAVAILABLE' ? <div className="source-callout large" role="status"><ServerOff size={24} /><div><h2>活动数据源未接入</h2><p>当前暂无可信的活动记录来源。</p><button className="button secondary" onClick={resource.retry}><RefreshCw size={15} />重新检查</button></div></div> : <Status {...resource}><Empty subject="活动" filtered={false} /></Status>}
   </>;
 }
@@ -104,12 +105,12 @@ export function ErrorsPage() {
   const [draft, setDraft] = useState(storeId);
   const resource = useResource<List<ErrorEvent>>(`/events/errors?${new URLSearchParams({ storeId, offset: String(offset), limit: '25' })}`);
   const update = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key)); if (!('offset' in values)) next.delete('offset'); setParams(next); };
-  return <><PageTitle title="Errors" note="已采集的脱敏应用错误" /><div className="toolbar"><form className="search-box" onSubmit={(event) => { event.preventDefault(); update({ storeId: draft }); }}><Search size={17} /><label className="sr-only" htmlFor="error-store">按店铺 ID 筛选</label><input id="error-store" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="按店铺 ID 筛选" /><button type="submit" aria-label="筛选" title="筛选"><ArrowRight size={17} /></button></form><span className="toolbar-note">默认显示最近记录 · 内容已脱敏</span></div>
+  return <><PageTitle title="Errors" note="已采集的脱敏应用错误" action={<RefreshButton loading={resource.loading} onRefresh={resource.retry} />}/><div className="toolbar"><form className="search-box" onSubmit={(event) => { event.preventDefault(); update({ storeId: draft }); }}><Search size={17} /><label className="sr-only" htmlFor="error-store">按店铺 ID 筛选</label><input id="error-store" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="按店铺 ID 筛选" /><button type="submit" aria-label="筛选" title="筛选"><ArrowRight size={17} /></button></form><span className="toolbar-note">默认显示最近记录 · 内容已脱敏</span></div>
     <Status {...resource}>{resource.data && (resource.data.items.length ? <><div className="table-wrap"><table><thead><tr><th>发生时间</th><th>级别</th><th>类型 / 错误码</th><th>店铺</th><th>Trace ID</th></tr></thead><tbody>{resource.data.items.map((event) => <tr key={event.id}><td>{absoluteTime(event.occurredAt)}</td><td><span className="badge error">{event.severity}</span></td><td><strong>{event.kind}</strong><small className="cell-sub">{event.code}</small></td><td>{event.storeId ? <Link className="table-link mono" to={`/stores/${encodeURIComponent(event.storeId)}`}>{event.storeId}</Link> : '无法关联'}</td><td className="mono copy-value">{event.traceId || '无'}{event.traceId && <CopyButton value={event.traceId} label="Trace ID" />}</td></tr>)}</tbody></table></div><div className="mobile-records">{resource.data.items.map((event) => <article className="mobile-record" key={event.id}><div><strong>{event.code}</strong><span className="badge error">{event.severity}</span></div><small>{event.kind} · {absoluteTime(event.occurredAt)}</small><span>{event.storeId || '无法关联店铺'}</span></article>)}</div><Pager offset={offset} count={resource.data.items.length} total={resource.data.total || 0} onPage={(value) => update({ offset: String(value) })} /></> : <Empty subject="错误记录" filtered={Boolean(storeId)} onClear={() => { setDraft(''); setParams({}); }} />)}</Status>
   </>;
 }
 
 export function AuditPage() {
   const resource = useResource<List<AuditEvent>>('/audit-events?limit=25&offset=0');
-  return <><PageTitle title="Audit" note="管理员访问和操作记录" /><Status {...resource}>{resource.data && (resource.data.items.length ? <><div className="table-wrap"><table><thead><tr><th>时间</th><th>管理员</th><th>动作</th><th>对象</th><th>结果</th><th>Request ID</th></tr></thead><tbody>{resource.data.items.map((event) => <tr key={event.id}><td>{absoluteTime(event.occurredAt)}</td><td className="mono">{event.actorId || '未知'}</td><td>{event.action}</td><td className="mono">{event.targetId || '—'}</td><td>{event.result}</td><td className="mono">{event.requestId}</td></tr>)}</tbody></table></div><div className="mobile-records">{resource.data.items.map((event) => <article className="mobile-record" key={event.id}><strong>{event.action}</strong><small>{absoluteTime(event.occurredAt)} · {event.result}</small><span className="mono">{event.targetId || '无对象'}</span></article>)}</div></> : <Empty subject="审计记录" filtered={false} />)}</Status></>;
+  return <><PageTitle title="Audit" note="管理员访问和操作记录" action={<RefreshButton loading={resource.loading} onRefresh={resource.retry} />}/><Status {...resource}>{resource.data && (resource.data.items.length ? <><div className="table-wrap"><table><thead><tr><th>时间</th><th>管理员</th><th>动作</th><th>对象</th><th>结果</th><th>Request ID</th></tr></thead><tbody>{resource.data.items.map((event) => <tr key={event.id}><td>{absoluteTime(event.occurredAt)}</td><td className="mono">{event.actorId || '未知'}</td><td>{event.action}</td><td className="mono">{event.targetId || '—'}</td><td>{event.result}</td><td className="mono">{event.requestId}</td></tr>)}</tbody></table></div><div className="mobile-records">{resource.data.items.map((event) => <article className="mobile-record" key={event.id}><strong>{event.action}</strong><small>{absoluteTime(event.occurredAt)} · {event.result}</small><span className="mono">{event.targetId || '无对象'}</span></article>)}</div></> : <Empty subject="审计记录" filtered={false} />)}</Status></>;
 }

@@ -20,3 +20,8 @@ test('opens only valid diagnostic response bodies and formats the complete redac
   assert.equal(presentation.canViewDiagnosticResponse(null), false);
   assert.equal(presentation.formatDiagnosticResponseBody(body), '{\n  "error": {\n    "code": "DISCOUNT_UNAVAILABLE"\n  },\n  "details": {\n    "retryable": true\n  }\n}');
 });
+
+test('uses a disabled refresh label while current data is loading', () => {
+  assert.equal(presentation.refreshLabel(false), '刷新');
+  assert.equal(presentation.refreshLabel(true), '刷新中');
+});

@@ -195,6 +195,9 @@ tbody tr:hover { background: #fafafa; }
 .response-dialog { width: min(100%, 780px); }
 .response-body { max-height: min(58vh, 580px); overflow: auto; margin: 18px 0 0; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); padding: 12px; color: var(--foreground); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .copy-notice { align-self: center; margin-right: auto; color: var(--muted-foreground); font-size: 12px; }
+.page-actions { display: flex; align-items: center; gap: 8px; }
+.refresh-icon.spinning { animation: refresh-spin 0.85s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
 .campaign-notice { margin: 0 0 16px; border: 1px solid #bbf7d0; border-radius: 6px; background: var(--success-muted); padding: 9px 12px; color: var(--success); font-size: 12px; }
 .dialog-backdrop { position: fixed; z-index: 40; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 38%); }
 .confirm-dialog { width: min(100%, 470px); border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 20px; box-shadow: 0 18px 48px rgb(0 0 0 / 18%); }

@@ -24,3 +24,7 @@ export function formatDiagnosticResponseBody(body) {
 export function canViewDiagnosticResponse(body) {
   return formatDiagnosticResponseBody(body) !== null;
 }
+
+export function refreshLabel(refreshing) {
+  return refreshing ? '刷新中' : '刷新';
+}

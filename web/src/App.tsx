@@ -3,7 +3,7 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-route
 import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, ShieldCheck, Store as StoreIcon, Wrench, X } from 'lucide-react';
 import { api, ApiError, type Admin } from './api';
 import { FeedbackCommentsPage, FeedbackDetailPage, FeedbackPage } from './feedback';
-import { AuditPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
+import { ApplicationRequestsPage, AuditPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
 import { CampaignDetailPage, CampaignsPage } from './campaigns';
 import { DiagnosticsPage } from './diagnostics';
 
@@ -44,6 +44,7 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
     { to: '/campaigns', label: '活动与排障', icon: Wrench },
     { to: '/diagnostics', label: '诊断', icon: Activity },
     { to: '/errors', label: 'Errors', icon: Activity },
+    { to: '/application-requests', label: '应用接口', icon: Activity },
     { to: '/feedback', label: '需求与建议', icon: MessageSquareText },
     { to: '/feedback-comments', label: '评论管理', icon: MessageSquareText },
     { to: '/audit', label: 'Audit', icon: ClipboardList },
@@ -67,6 +68,7 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
       <Route path="/campaigns/:id" element={<CampaignDetailPage admin={admin} />} />
       <Route path="/diagnostics" element={<DiagnosticsPage />} />
       <Route path="/errors" element={<ErrorsPage />} />
+      <Route path="/application-requests" element={<ApplicationRequestsPage />} />
       <Route path="/feedback" element={<FeedbackPage />} />
       <Route path="/feedback-comments" element={<FeedbackCommentsPage admin={admin} />} />
       <Route path="/feedback/:id" element={<FeedbackDetailPage admin={admin} />} />

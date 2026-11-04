@@ -104,6 +104,51 @@ it('maps merchant 404 responses and audits the sensitive read as not found', asy
   }));
 });
 
+it('forwards application-request filters and projects only the diagnostic summary fields', async () => {
+  const fetch = vi.fn(async (_request: Request) => new Response(JSON.stringify({
+    data: {
+      total: 1,
+      items: [{
+        id: 'request-1', traceId: '550e8400-e29b-41d4-a716-446655440000', storeId: '42', handle: 'alpha',
+        route: '/api/quantity-breaks/campaigns', method: 'GET', httpStatus: 429, durationMs: 120,
+        outcome: 'client_error', occurredAt: '2026-11-04T10:42:00.000Z', authorization: 'never-return-this',
+      }],
+    },
+  })));
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+
+  const response = await loggedInFetch('/admin-api/v1/diagnostics/requests?storeId=42&traceId=550e8400-e29b-41d4-a716-446655440000&method=GET&outcome=client_error&httpStatus=429&limit=25&offset=0');
+
+  expect(response.status).toBe(200);
+  const payload = JSON.stringify(await response.json());
+  expect(payload).toContain('alpha');
+  expect(payload).not.toContain('never-return-this');
+  const forwarded = new URL((fetch.mock.calls[0][0] as Request).url);
+  expect(forwarded.pathname).toBe('/internal/admin-read/v1/diagnostics/requests');
+  expect(forwarded.searchParams.get('method')).toBe('GET');
+  expect(forwarded.searchParams.get('outcome')).toBe('client_error');
+  expect(forwarded.searchParams.get('httpStatus')).toBe('429');
+});
+
+it('projects the safe Error context while stripping credential-like source fields', async () => {
+  env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({ data: { total: 1, items: [{
+    id: 1, storeId: '42', handle: 'alpha', kind: 'worker_http_failure', severity: 'error', code: 'HTTP_503',
+    traceId: '550e8400-e29b-41d4-a716-446655440000', source: 'worker', operation: 'worker_http_failure',
+    route: '/api/quantity-breaks/campaigns', method: 'GET', httpStatus: 503, message: '上游服务暂不可用',
+    relatedTraceId: null, occurredAt: '2026-11-04T10:42:00.000Z', authorization: 'never-return-this',
+  }] } })) } as unknown as Fetcher;
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+
+  const response = await loggedInFetch('/admin-api/v1/events/errors?limit=25&offset=0');
+
+  expect(response.status).toBe(200);
+  const payload = JSON.stringify(await response.json());
+  expect(payload).toContain('GET');
+  expect(payload).toContain('上游服务暂不可用');
+  expect(payload).not.toContain('never-return-this');
+});
+
 it('maps malformed and replay-rejected merchant responses to source unavailable', async () => {
   env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
   env.MERCHANT_APP = { fetch: async () => new Response('<html>unexpected</html>') } as unknown as Fetcher;

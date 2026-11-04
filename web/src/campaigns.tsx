@@ -21,9 +21,9 @@ function useCampaignResource<T>(path: string | null) {
   return { data, error, loading, retry: () => setRevision((value) => value + 1) };
 }
 
-const labels: Record<CampaignStatus, string> = { draft: '草稿', active: '启用', scheduled: '计划中', paused: '已暂停', ended: '已结束' };
-const canPause = (campaign: Campaign) => (campaign.status === 'active' || campaign.status === 'scheduled') && campaign.platformDiscountState === 'active';
-const canActivate = (campaign: Campaign) => campaign.status === 'paused' && campaign.platformDiscountState === 'paused';
+const labels: Record<CampaignStatus, string> = { draft: '草稿', active: '生效', expired: '已失效' };
+const canPause = (campaign: Campaign) => campaign.status === 'active' && campaign.platformDiscountState === 'active';
+const canActivate = (_campaign: Campaign) => false;
 const canDeletePlatform = (campaign: Campaign) => campaign.platformDiscountState === 'active' || campaign.platformDiscountState === 'paused';
 const scopeText = (campaign: Campaign) => campaign.scope.kind === 'products' ? `指定商品 · ${(campaign.scope.productIds || []).length} 个` : campaign.scope.kind === 'collections' ? `指定集合 · ${(campaign.scope.collectionIds || []).length} 个` : '全部商品';
 

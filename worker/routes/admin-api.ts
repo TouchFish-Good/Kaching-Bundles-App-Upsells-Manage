@@ -156,6 +156,22 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
     return source(() => sourcePath('/events/errors', { storeId: context.req.query('storeId'), from: context.req.query('from'), to: context.req.query('to'), limit: String(pagination.limit), offset: String(pagination.offset) }), true)(context);
   });
+  app.get('/diagnostics/requests', requireOwner, (context) => {
+    const pagination = sourcePage(context);
+    if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
+    const storeId = context.req.query('storeId');
+    const traceId = context.req.query('traceId');
+    const method = context.req.query('method');
+    const outcome = context.req.query('outcome');
+    const httpStatus = context.req.query('httpStatus');
+    if ((storeId !== undefined && !validStoreId(storeId)) || !validTraceId(traceId) ||
+      (method !== undefined && !['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) ||
+      (outcome !== undefined && !['success', 'client_error', 'server_error'].includes(outcome)) ||
+      (httpStatus !== undefined && (!/^\d{3}$/.test(httpStatus) || Number(httpStatus) < 100 || Number(httpStatus) > 599))) {
+      return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
+    }
+    return source(() => sourcePath('/diagnostics/requests', { storeId, traceId, method, outcome, httpStatus, limit: String(pagination.limit), offset: String(pagination.offset) }), true)(context);
+  });
   const campaignRead = (path: (context: ApiContext) => string, targetId: (context: ApiContext) => string | null, action: 'campaign.read' | 'diagnostics.read') => async (context: ApiContext) => {
     const requestId = context.get('requestId');
     const sourcePathname = path(context);
@@ -180,7 +196,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const query = context.req.query('query');
     const status = context.req.query('status');
     if (query && query.length > 100) return context.json({ error: { code: 'INVALID_QUERY' }, requestId: context.get('requestId') }, 422);
-    if (status && !['draft', 'active', 'scheduled', 'paused', 'ended'].includes(status)) return context.json({ error: { code: 'INVALID_STATUS' }, requestId: context.get('requestId') }, 422);
+    if (status && !['draft', 'active', 'expired'].includes(status)) return context.json({ error: { code: 'INVALID_STATUS' }, requestId: context.get('requestId') }, 422);
     const path = storeId
       ? sourcePath(`/stores/${encodeURIComponent(storeId)}/campaigns`, { query, status, limit: String(pagination.limit), offset: String(pagination.offset) })
       : sourcePath('/campaigns', { query, status, limit: String(pagination.limit), offset: String(pagination.offset) });

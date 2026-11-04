@@ -139,7 +139,7 @@ function feedbackWrite(value: unknown): Record<string, unknown> {
   return { feedback: { id: value.feedback.id, status: value.feedback.status } };
 }
 
-const campaignStatuses = ['draft', 'active', 'scheduled', 'paused', 'ended'];
+const campaignStatuses = ['draft', 'active', 'expired', 'scheduled', 'paused', 'ended'];
 const campaignDiscountTypes = ['none', 'percentage', 'fixed_amount', 'fixed_price', 'bundle_fixed_amount', 'bundle_fixed_price'];
 const diagnosticEventTypes = ['shopline_api', 'worker_error', 'campaign_pause', 'campaign_platform_delete', 'campaign_read'];
 const diagnosticOutcomes = ['success', 'failure', 'uncertain'];
@@ -165,8 +165,9 @@ function campaignTier(value: unknown): Record<string, unknown> {
 function campaign(value: unknown): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.name) || !text(value.status) || !campaignStatuses.includes(value.status) || !Number.isInteger(value.revision) || !Array.isArray(value.tiers) || !optionalText(value.startsAt) || !optionalText(value.endsAt) || !optionalText(value.pauseReason) || !text(value.updatedAt)) throw new Error('INVALID_SOURCE');
   if (value.platformDiscountState !== undefined && !(value.platformDiscountState === null || ['active', 'paused', 'removed'].includes(String(value.platformDiscountState)))) throw new Error('INVALID_SOURCE');
+  const status = value.status === 'draft' || value.status === 'active' ? value.status : 'expired';
   return {
-    id: value.id, name: value.name, status: value.status, revision: value.revision,
+    id: value.id, name: value.name, status, revision: value.revision,
     scope: campaignScope(value.scope), tiers: value.tiers.map(campaignTier), startsAt: value.startsAt,
     endsAt: value.endsAt, pauseReason: value.pauseReason, updatedAt: value.updatedAt,
     ...(value.storeId !== undefined ? { storeId: text(value.storeId) ? value.storeId : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
@@ -231,8 +232,20 @@ export function projectSource(path: string, result: SourceResult): Projection {
     if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
     return { status: 200, body: { data: { total: data.total, items: data.items.map((event) => {
       if (!record(event) || !Number.isInteger(event.id) || !optionalText(event.storeId) || !text(event.kind) ||
-        !text(event.severity) || !text(event.code) || !optionalText(event.traceId) || !text(event.occurredAt)) throw new Error('INVALID_SOURCE');
-      return { id: event.id, storeId: event.storeId, kind: event.kind, severity: event.severity, code: event.code, traceId: event.traceId, occurredAt: event.occurredAt };
+        !optionalText(event.handle) || !text(event.severity) || !text(event.code) || !optionalText(event.traceId) ||
+        !optionalText(event.source) || (event.source !== null && !['worker', 'browser'].includes(event.source)) ||
+        !optionalText(event.operation) || !optionalText(event.route) || !optionalText(event.method) || !optionalInteger(event.httpStatus) ||
+        !optionalText(event.message) || !optionalText(event.relatedTraceId) || !text(event.occurredAt)) throw new Error('INVALID_SOURCE');
+      return { id: event.id, storeId: event.storeId, handle: event.handle, kind: event.kind, severity: event.severity, code: event.code,
+        traceId: event.traceId, source: event.source, operation: event.operation, route: event.route, method: event.method,
+        httpStatus: event.httpStatus, message: event.message, relatedTraceId: event.relatedTraceId, occurredAt: event.occurredAt };
+    }) } } };
+  }
+  if (path.startsWith('/diagnostics/requests')) {
+    if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
+    return { status: 200, body: { data: { total: data.total, items: data.items.map((event) => {
+      if (!record(event) || !text(event.id) || !text(event.traceId) || !optionalText(event.storeId) || !optionalText(event.handle) || !text(event.route) || !text(event.method) || !Number.isInteger(event.httpStatus) || !Number.isInteger(event.durationMs) || !['success', 'client_error', 'server_error'].includes(String(event.outcome)) || !text(event.occurredAt)) throw new Error('INVALID_SOURCE');
+      return { id: event.id, traceId: event.traceId, storeId: event.storeId, handle: event.handle, route: event.route, method: event.method, httpStatus: event.httpStatus, durationMs: event.durationMs, outcome: event.outcome, occurredAt: event.occurredAt };
     }) } } };
   }
   if (path === '/feedback' || path.startsWith('/feedback?')) {

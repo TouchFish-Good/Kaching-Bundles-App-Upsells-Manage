@@ -101,15 +101,17 @@ it('reads global campaigns without exposing SHOPLINE platform IDs', async () => 
   expect(payload).not.toContain('secret-platform-id');
 });
 
-it('projects diagnostics through an allowlist and never returns upstream secrets', async () => {
+it('projects allowlisted SHOPLINE diagnostic responses without upstream secrets', async () => {
   env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
-    data: { total: 1, items: [{ id: 'event-1', traceId: '550e8400-e29b-41d4-a716-446655440000', workerName: 'shopline-quantity-breaks', storeId: '42', shopHandle: 'alpha', campaignId: 'campaign-1', eventType: 'campaign_pause', outcome: 'uncertain', upstreamService: 'SHOPLINE', upstreamPath: '/sales/discount_apps/1.json', upstreamStatus: 504, upstreamRequestId: 'shopline-1', errorCode: 'UPSTREAM_OUTCOME_UNCERTAIN', durationMs: 10, occurredAt: '2026-11-03T00:00:00.000Z', accessToken: 'secret' }] },
+    data: { total: 1, items: [{ id: 'event-1', traceId: '550e8400-e29b-41d4-a716-446655440000', workerName: 'shopline-quantity-breaks', storeId: '42', shopHandle: 'alpha', campaignId: 'campaign-1', eventType: 'campaign_pause', outcome: 'uncertain', upstreamService: 'SHOPLINE', upstreamPath: '/sales/discount_apps/1.json', upstreamStatus: 504, upstreamRequestId: 'shopline-1', errorCode: 'UPSTREAM_OUTCOME_UNCERTAIN', upstreamResponseCode: 'DISCOUNT_UNAVAILABLE', upstreamResponseMessage: 'Discount state is temporarily unavailable.', durationMs: 10, occurredAt: '2026-11-03T00:00:00.000Z', accessToken: 'secret' }] },
   })) } as unknown as Fetcher;
 
   const response = await loggedInFetch('/admin-api/v1/diagnostics?traceId=550e8400-e29b-41d4-a716-446655440000&limit=25&offset=0');
 
   expect(response.status).toBe(200);
-  expect(JSON.stringify(await response.json())).not.toContain('secret');
+  const payload = await response.json();
+  expect(payload).toMatchObject({ data: { items: [expect.objectContaining({ upstreamResponseCode: 'DISCOUNT_UNAVAILABLE', upstreamResponseMessage: 'Discount state is temporarily unavailable.' })] } });
+  expect(JSON.stringify(payload)).not.toContain('secret');
 });
 
 it('preserves only the safe coverage conflict needed by the Owner UI', async () => {

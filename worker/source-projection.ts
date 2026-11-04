@@ -169,11 +169,12 @@ function diagnostic(value: unknown): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.traceId) || !text(value.workerName) || !optionalText(value.storeId) ||
     !optionalText(value.shopHandle) || !optionalText(value.campaignId) || !text(value.eventType) || !diagnosticEventTypes.includes(value.eventType) ||
     !text(value.outcome) || !diagnosticOutcomes.includes(value.outcome) || !optionalText(value.upstreamService) || !optionalText(value.upstreamPath) ||
-    !optionalInteger(value.upstreamStatus) || !optionalText(value.upstreamRequestId) || !optionalText(value.errorCode) || !optionalInteger(value.durationMs) || !text(value.occurredAt)) throw new Error('INVALID_SOURCE');
+    !optionalInteger(value.upstreamStatus) || !optionalText(value.upstreamRequestId) || !optionalText(value.upstreamResponseCode) || !optionalText(value.upstreamResponseMessage) || !optionalText(value.errorCode) || !optionalInteger(value.durationMs) || !text(value.occurredAt)) throw new Error('INVALID_SOURCE');
   return {
     id: value.id, traceId: value.traceId, workerName: value.workerName, storeId: value.storeId, shopHandle: value.shopHandle,
     campaignId: value.campaignId, eventType: value.eventType, outcome: value.outcome, upstreamService: value.upstreamService,
     upstreamPath: value.upstreamPath, upstreamStatus: value.upstreamStatus, upstreamRequestId: value.upstreamRequestId,
+    upstreamResponseCode: value.upstreamResponseCode, upstreamResponseMessage: value.upstreamResponseMessage,
     errorCode: value.errorCode, durationMs: value.durationMs, occurredAt: value.occurredAt,
   };
 }

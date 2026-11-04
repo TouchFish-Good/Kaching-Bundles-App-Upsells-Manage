@@ -18,12 +18,22 @@ function optionalInteger(value: unknown): value is number | null {
 }
 
 function rejectSensitive(value: unknown): void {
+  if (typeof value === 'string' && /(?:bearer\s+\S+|(?:access|refresh)[_ -]?token\s*[:=]|authorization\s*[:=]|cookie\s*[:=]|password\s*[:=]|secret\s*[:=])/i.test(value)) throw new Error('INVALID_SOURCE');
   if (Array.isArray(value)) { value.forEach(rejectSensitive); return; }
   if (!record(value)) return;
   for (const [key, child] of Object.entries(value)) {
-    if (/^(accessToken|refreshToken|token|authorization|cookie|platformDiscountId|graphql|queryText)$/i.test(key)) throw new Error('INVALID_SOURCE');
+    if (/(?:access[_ -]?token|refresh[_ -]?token|authorization|cookie|password|secret|credential|api[_ -]?key|platformDiscountId|graphql|queryText)/i.test(key)) throw new Error('INVALID_SOURCE');
     rejectSensitive(child);
   }
+}
+
+function diagnosticResponseBody(value: unknown): string | null {
+  if (value === null) return null;
+  if (!text(value) || value.length > 8192) throw new Error('INVALID_SOURCE');
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { throw new Error('INVALID_SOURCE'); }
+  rejectSensitive(parsed);
+  return value;
 }
 
 function textList(value: unknown): string[] {
@@ -166,6 +176,7 @@ function campaign(value: unknown): Record<string, unknown> {
 }
 
 function diagnostic(value: unknown): Record<string, unknown> {
+  const upstreamResponseBody = record(value) ? diagnosticResponseBody(value.upstreamResponseBody) : null;
   if (!record(value) || !text(value.id) || !text(value.traceId) || !text(value.workerName) || !optionalText(value.storeId) ||
     !optionalText(value.shopHandle) || !optionalText(value.campaignId) || !text(value.eventType) || !diagnosticEventTypes.includes(value.eventType) ||
     !text(value.outcome) || !diagnosticOutcomes.includes(value.outcome) || !optionalText(value.upstreamService) || !optionalText(value.upstreamPath) ||
@@ -175,6 +186,7 @@ function diagnostic(value: unknown): Record<string, unknown> {
     campaignId: value.campaignId, eventType: value.eventType, outcome: value.outcome, upstreamService: value.upstreamService,
     upstreamPath: value.upstreamPath, upstreamStatus: value.upstreamStatus, upstreamRequestId: value.upstreamRequestId,
     upstreamResponseCode: value.upstreamResponseCode, upstreamResponseMessage: value.upstreamResponseMessage,
+    upstreamResponseBody,
     errorCode: value.errorCode, durationMs: value.durationMs, occurredAt: value.occurredAt,
   };
 }

@@ -192,6 +192,9 @@ tbody tr:hover { background: #fafafa; }
 .campaign-draft, .campaign-paused, .campaign-ended { background: var(--muted); color: var(--muted-foreground); }
 .diagnostic-failure { border-color: #fecaca; background: var(--destructive-muted); color: var(--destructive); }
 .diagnostic-uncertain { border-color: #fde68a; background: var(--warning-muted); color: var(--warning); }
+.diagnostic-response-details { margin-top: 6px; }
+.diagnostic-response-details summary { cursor: pointer; color: var(--primary); }
+.diagnostic-response-details pre { max-width: 420px; max-height: 220px; overflow: auto; margin: 6px 0 0; padding: 8px; border: 1px solid var(--border); background: var(--muted); white-space: pre-wrap; word-break: break-word; }
 .campaign-notice { margin: 0 0 16px; border: 1px solid #bbf7d0; border-radius: 6px; background: var(--success-muted); padding: 9px 12px; color: var(--success); font-size: 12px; }
 .dialog-backdrop { position: fixed; z-index: 40; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 38%); }
 .confirm-dialog { width: min(100%, 470px); border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 20px; box-shadow: 0 18px 48px rgb(0 0 0 / 18%); }

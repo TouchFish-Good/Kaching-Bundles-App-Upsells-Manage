@@ -33,6 +33,7 @@ export type Diagnostic = {
   id: string; traceId: string; workerName: string; storeId: string | null; shopHandle: string | null; campaignId: string | null;
   eventType: string; outcome: DiagnosticOutcome; upstreamService: string | null; upstreamPath: string | null; upstreamStatus: number | null;
   upstreamRequestId: string | null; upstreamResponseCode: string | null; upstreamResponseMessage: string | null;
+  upstreamResponseBody: string | null;
   errorCode: string | null; durationMs: number | null; occurredAt: string;
 };
 

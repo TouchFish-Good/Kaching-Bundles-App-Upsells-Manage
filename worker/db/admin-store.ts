@@ -192,6 +192,23 @@ export class AdminStore {
     };
   }
 
+  async consumeInternalNonce(nonce: string): Promise<boolean> {
+    const now = this.now();
+    const results = await this.db.batch([
+      this.db.prepare('DELETE FROM internal_request_nonces WHERE expires_at <= ?').bind(now),
+      this.db.prepare('INSERT INTO internal_request_nonces(nonce, expires_at) VALUES (?, ?) ON CONFLICT(nonce) DO NOTHING').bind(nonce, now + 60_000),
+    ]);
+    return (results[1].meta.changes ?? 0) === 1;
+  }
+
+  async removeMerchantAuditTargets(storeId: string, shopHandle?: string): Promise<void> {
+    if (shopHandle) {
+      await this.db.prepare('DELETE FROM admin_audit WHERE target_id = ? OR target_id = ?').bind(storeId, shopHandle).run();
+      return;
+    }
+    await this.db.prepare('DELETE FROM admin_audit WHERE target_id = ?').bind(storeId).run();
+  }
+
   async consumeLoginAttempt(ipKey: string): Promise<{ allowed: boolean; count: number; windowEndsAt: number }> {
     const now = this.now();
     const windowEndsAt = now + LOGIN_WINDOW_MS;

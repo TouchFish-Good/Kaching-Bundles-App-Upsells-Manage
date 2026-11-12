@@ -6,6 +6,7 @@ import { FeedbackCommentsPage, FeedbackDetailPage, FeedbackPage } from './feedba
 import { ApplicationRequestsPage, AuditPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
 import { CampaignDetailPage, CampaignsPage } from './campaigns';
 import { DiagnosticsPage } from './diagnostics';
+import { GdprTasksPage } from './gdpr';
 
 function Login({ onReady }: { onReady: (admin: Admin) => void }) {
   const [email, setEmail] = useState('');
@@ -48,6 +49,8 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
     { to: '/feedback', label: '需求与建议', icon: MessageSquareText },
     { to: '/feedback-comments', label: '评论管理', icon: MessageSquareText },
     { to: '/audit', label: 'Audit', icon: ClipboardList },
+    { to: '/gdpr/customer-deletions', label: 'GDPR 客户删除', icon: ShieldCheck },
+    { to: '/gdpr/merchant-deletions', label: 'GDPR 商店删除', icon: ShieldCheck },
   ];
   return <div className="shell">
     <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
@@ -73,6 +76,8 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
       <Route path="/feedback-comments" element={<FeedbackCommentsPage admin={admin} />} />
       <Route path="/feedback/:id" element={<FeedbackDetailPage admin={admin} />} />
       <Route path="/audit" element={<AuditPage />} />
+      <Route path="/gdpr/customer-deletions" element={<GdprTasksPage kind="customer_redact" admin={admin} />} />
+      <Route path="/gdpr/merchant-deletions" element={<GdprTasksPage kind="merchant_redact" admin={admin} />} />
       <Route path="/" element={<Navigate to="/overview" replace />} />
       <Route path="*" element={<div className="state-block"><h1>页面不存在</h1><Link to="/overview">返回 Overview</Link></div>} />
     </Routes></main></div>

@@ -6,9 +6,16 @@ function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
-async function signature(secret: string, value: string): Promise<string> {
+export async function internalSignature(secret: string, value: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return hex(await crypto.subtle.sign('HMAC', key, encoder.encode(value)));
+}
+
+export function timingSafeSignatureEqual(left: string, right: string): boolean {
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) difference |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+  return difference === 0;
 }
 
 function validTraceId(value: string | undefined): value is string {
@@ -27,7 +34,7 @@ async function internalRequest(env: Env, method: 'GET' | 'PATCH' | 'POST' | 'DEL
       'x-admin-timestamp': timestamp,
       'x-admin-nonce': nonce,
       'x-trace-id': signedTraceId,
-      'x-admin-signature': await signature(env.ADMIN_INTERNAL_SECRET, `${method}\n${signedPath}\n${timestamp}\n${nonce}\n${signedTraceId}`),
+      'x-admin-signature': await internalSignature(env.ADMIN_INTERNAL_SECRET, `${method}\n${signedPath}\n${timestamp}\n${nonce}\n${signedTraceId}`),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(5_000),

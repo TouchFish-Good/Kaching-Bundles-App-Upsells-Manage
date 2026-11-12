@@ -1,0 +1,18 @@
+import { useEffect, useState } from 'react';
+import { RefreshCw, RotateCcw } from 'lucide-react';
+import { api, type Admin, type GdprDeletionTask } from './api';
+import { canRetryGdprTask, gdprTaskStoreLabel } from './gdpr-presentation';
+import { absoluteTime } from './state';
+import { RefreshButton } from './refresh-button';
+
+const stateLabel: Record<string, string> = { pending: '待处理', running: '处理中', completed: '已完成', retrying: '重试中', failed: '失败' };
+const taskTime = (value: number) => absoluteTime(new Date(value).toISOString());
+
+export function GdprTasksPage({ kind, admin }: { kind: 'customer_redact' | 'merchant_redact'; admin: Admin }) {
+  const [state, setState] = useState(''); const [storeId, setStoreId] = useState(''); const [data, setData] = useState<{ total: number; items: GdprDeletionTask[] } | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [revision, setRevision] = useState(0);
+  const load = () => setRevision((value) => value + 1);
+  useEffect(() => { let active = true; setLoading(true); const query = new URLSearchParams({ limit: '25', offset: '0', ...(state ? { state } : {}), ...(storeId ? { storeId } : {}) }); api<{ total: number; items: GdprDeletionTask[] }>(`/gdpr/${kind === 'customer_redact' ? 'customer' : 'merchant'}-tasks?${query}`).then((value) => { if (active) setData(value); }).catch(() => { if (active) setError('加载失败'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [kind, state, storeId, revision]);
+  const retry = async (task: GdprDeletionTask) => { if (!canRetryGdprTask(task) || !window.confirm('此操作会重新执行删除任务，且删除不可逆。确认继续？')) return; await api(`/gdpr/tasks/${encodeURIComponent(task.webhookId)}/retry`, { method: 'POST', headers: { 'x-csrf-token': admin.csrfToken } }); load(); };
+  const title = kind === 'customer_redact' ? '客户数据删除' : '商店数据删除';
+  return <><div className="page-title"><div><h1>{title}</h1><p>SHOPLINE GDPR Webhook 任务</p></div><RefreshButton loading={loading} onRefresh={load} /></div><div className="toolbar"><label className="select-label">状态<select value={state} onChange={(event) => setState(event.target.value)}><option value="">全部</option>{Object.entries(stateLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="select-label">商家 ID<input value={storeId} onChange={(event) => setStoreId(event.target.value.replace(/\D/g, ''))} placeholder="店铺 ID" /></label></div>{loading ? <div className="loading-panel" role="status"><div className="skeleton-line wide" /></div> : error ? <div className="state-block" role="alert"><h2>加载失败</h2><button className="button secondary" onClick={load}><RefreshCw size={15} />重试</button></div> : data?.items.length ? <div className="table-wrap"><table><thead><tr><th>接收时间</th><th>商家/客户摘要</th><th>事件 ID</th><th>状态</th><th>尝试</th><th>截止时间</th><th>完成时间</th><th>失败代码</th><th>操作</th></tr></thead><tbody>{data.items.map((task) => <tr key={task.webhookId}><td>{taskTime(task.receivedAt)}</td><td>{gdprTaskStoreLabel(task)}</td><td className="mono">{task.webhookId}</td><td><span className={`badge ${task.state}`}>{stateLabel[task.state]}</span></td><td>{task.attempts}</td><td>{taskTime(task.deadlineAt)}</td><td>{task.completedAt ? taskTime(task.completedAt) : '—'}</td><td className="mono">{task.lastErrorCode || '—'}</td><td>{canRetryGdprTask(task) && <button className="icon-button" title="重新执行删除任务" aria-label="重新执行删除任务" onClick={() => retry(task)}><RotateCcw size={16} /></button>}</td></tr>)}</tbody></table></div> : <div className="empty-state"><strong>暂无任务</strong><p>当前筛选条件下没有 GDPR 删除记录。</p></div>}</>;
+}

@@ -37,6 +37,7 @@ export type Diagnostic = {
   upstreamResponseBody: string | null;
   errorCode: string | null; durationMs: number | null; occurredAt: string;
 };
+export type GdprDeletionTask = { webhookId: string; kind: 'customer_redact' | 'merchant_redact'; storeId: string; handle: string | null; customerDigest: string | null; state: 'pending' | 'running' | 'completed' | 'retrying' | 'failed'; receivedAt: number; deadlineAt: number; completedAt: number | null; attempts: number; nextAttemptAt: number; lastErrorCode: string | null };
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, public details: unknown = null) { super(code); }

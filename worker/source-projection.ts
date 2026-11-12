@@ -89,6 +89,30 @@ function sourceError(status: number, body: unknown): Projection {
 
 const feedbackStatuses = ['pending', 'approved', 'in_progress', 'released', 'rejected'];
 const feedbackDisplayStatuses = [...feedbackStatuses, 'rejected_hidden', 'withdrawn'];
+const gdprKinds = ['customer_redact', 'merchant_redact'];
+const gdprStates = ['pending', 'running', 'completed', 'retrying', 'failed'];
+
+function exactKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function gdprTask(value: unknown): Record<string, unknown> {
+  if (!record(value) || !exactKeys(value, ['webhookId', 'kind', 'storeId', 'handle', 'customerDigest', 'state', 'receivedAt', 'deadlineAt', 'completedAt', 'attempts', 'nextAttemptAt', 'lastErrorCode']) ||
+    !text(value.webhookId) || !text(value.kind) || !gdprKinds.includes(value.kind) || !text(value.storeId) || !/^\d{1,128}$/.test(value.storeId) ||
+    !optionalText(value.handle) || !optionalText(value.customerDigest) || !text(value.state) || !gdprStates.includes(value.state) ||
+    !Number.isInteger(value.receivedAt) || !Number.isInteger(value.deadlineAt) || !optionalInteger(value.completedAt) || typeof value.attempts !== 'number' || !Number.isInteger(value.attempts) || value.attempts < 0 ||
+    !Number.isInteger(value.nextAttemptAt) || !optionalText(value.lastErrorCode) || (value.state === 'completed' && value.handle !== null)) throw new Error('INVALID_SOURCE');
+  return {
+    webhookId: value.webhookId, kind: value.kind, storeId: value.storeId, handle: value.handle, customerDigest: value.customerDigest,
+    state: value.state, receivedAt: value.receivedAt, deadlineAt: value.deadlineAt, completedAt: value.completedAt,
+    attempts: value.attempts, nextAttemptAt: value.nextAttemptAt, lastErrorCode: value.lastErrorCode,
+  };
+}
+
+function gdprTaskList(value: unknown): Record<string, unknown> {
+  if (!record(value) || !exactKeys(value, ['total', 'offset', 'items']) || !Number.isInteger(value.total) || !Number.isInteger(value.offset) || !Array.isArray(value.items)) throw new Error('INVALID_SOURCE');
+  return { total: value.total, offset: value.offset, items: value.items.map(gdprTask) };
+}
 
 function feedbackSummary(value: unknown): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.storeId) || !text(value.handle) || typeof value.isAnonymous !== 'boolean' ||
@@ -159,6 +183,16 @@ function campaignTier(value: unknown): Record<string, unknown> {
   if (Number.isInteger(value.discountValue)) result.discountValue = value.discountValue;
   if (typeof value.recommended === 'boolean') result.recommended = value.recommended;
   for (const key of ['label', 'subtitle', 'tag']) if (text(value[key])) result[key] = value[key];
+  if (value.marketOverrides !== undefined) {
+    if (!Array.isArray(value.marketOverrides)) throw new Error('INVALID_SOURCE');
+    result.marketOverrides = value.marketOverrides.map((override) => {
+      if (!record(override) || !text(override.marketId) || override.marketId.length > 128 || !optionalText(override.marketName) ||
+        (typeof override.marketName === 'string' && override.marketName.length > 200) || !text(override.mode) || !['auto_convert', 'specified_amount'].includes(override.mode)) throw new Error('INVALID_SOURCE');
+      if (override.mode === 'auto_convert') return { marketId: override.marketId, marketName: override.marketName, mode: 'auto_convert' };
+      if (!text(override.currencyCode) || !/^[A-Z]{3}$/.test(override.currencyCode) || !Number.isInteger(override.amountMinor) || Number(override.amountMinor) <= 0) throw new Error('INVALID_SOURCE');
+      return { marketId: override.marketId, marketName: override.marketName, mode: 'specified_amount', currencyCode: override.currencyCode, amountMinor: override.amountMinor };
+    });
+  }
   return result;
 }
 
@@ -166,6 +200,7 @@ function campaign(value: unknown): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.name) || !text(value.status) || !campaignStatuses.includes(value.status) || !Number.isInteger(value.revision) || !Array.isArray(value.tiers) || !optionalText(value.startsAt) || !optionalText(value.endsAt) || !optionalText(value.pauseReason) || !text(value.updatedAt)) throw new Error('INVALID_SOURCE');
   if (value.platformDiscountState !== undefined && !(value.platformDiscountState === null || ['active', 'paused', 'removed'].includes(String(value.platformDiscountState)))) throw new Error('INVALID_SOURCE');
   const status = value.status === 'draft' || value.status === 'active' ? value.status : 'expired';
+  if (value.shopCurrencyCode !== undefined && !(value.shopCurrencyCode === null || (text(value.shopCurrencyCode) && /^[A-Z]{3}$/.test(value.shopCurrencyCode)))) throw new Error('INVALID_SOURCE');
   return {
     id: value.id, name: value.name, status, revision: value.revision,
     scope: campaignScope(value.scope), tiers: value.tiers.map(campaignTier), startsAt: value.startsAt,
@@ -173,6 +208,7 @@ function campaign(value: unknown): Record<string, unknown> {
     ...(value.storeId !== undefined ? { storeId: text(value.storeId) ? value.storeId : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
     ...(value.shopHandle !== undefined ? { shopHandle: text(value.shopHandle) ? value.shopHandle : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
     platformDiscountState: value.platformDiscountState ?? null,
+    ...(value.shopCurrencyCode !== undefined ? { shopCurrencyCode: value.shopCurrencyCode } : {}),
   };
 }
 
@@ -248,6 +284,8 @@ export function projectSource(path: string, result: SourceResult): Projection {
       return { id: event.id, traceId: event.traceId, storeId: event.storeId, handle: event.handle, route: event.route, method: event.method, httpStatus: event.httpStatus, durationMs: event.durationMs, outcome: event.outcome, occurredAt: event.occurredAt };
     }) } } };
   }
+  if (/^\/gdpr-tasks(?:\?.*)?$/.test(path)) return { status: 200, body: { data: gdprTaskList(data) } };
+  if (/^\/gdpr-tasks\/[^/]+\/retry$/.test(path)) return { status: 200, body: { data: gdprTask(data) } };
   if (path === '/feedback' || path.startsWith('/feedback?')) {
     if (!Number.isInteger(data.total) || !Number.isInteger(data.offset) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
     return { status: 200, body: { data: { total: data.total, offset: data.offset, items: data.items.map(feedbackSummary) } } };

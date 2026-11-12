@@ -72,6 +72,7 @@ function environmentAllowed(context: ApiContext): boolean {
 
 const feedbackStatuses = ['pending', 'approved', 'in_progress', 'released', 'rejected'];
 const feedbackDisplays = ['visible', 'rejected_hidden', 'withdrawn'];
+const gdprStates = ['pending', 'running', 'completed', 'retrying', 'failed'];
 
 function validId(value: string | undefined): value is string {
   return value !== undefined && /^[A-Za-z0-9-]{1,128}$/.test(value);
@@ -207,6 +208,39 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const storeId = context.req.query('storeId');
     if (!validId(id) || !validStoreId(storeId)) return context.json({ error: { code: 'NOT_FOUND' }, requestId: context.get('requestId') }, 404);
     return campaignRead(() => `/stores/${encodeURIComponent(storeId)}/campaigns/${encodeURIComponent(id)}`, () => id, 'campaign.read')(context);
+  });
+  const gdprTasks = (kind: 'customer_redact' | 'merchant_redact') => async (context: ApiContext) => {
+    const pagination = sourcePage(context);
+    const state = context.req.query('state');
+    const storeId = context.req.query('storeId');
+    if (!pagination || (state !== undefined && !gdprStates.includes(state)) || (storeId !== undefined && !validStoreId(storeId))) {
+      return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
+    }
+    const path = sourcePath('/gdpr-tasks', { kind, state, storeId, limit: String(pagination.limit), offset: String(pagination.offset) });
+    let result: { status: number; body: Record<string, unknown> };
+    try { result = projectSource(path, await internalGet(context.env, path, context.get('traceId'))); }
+    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    return context.json({ ...result.body, requestId: context.get('requestId') }, result.status as 200 | 404 | 422 | 503);
+  };
+  app.get('/gdpr/customer-tasks', requireOwner, gdprTasks('customer_redact'));
+  app.get('/gdpr/merchant-tasks', requireOwner, gdprTasks('merchant_redact'));
+  app.post('/gdpr/tasks/:webhookId/retry', requireOwner, async (context) => {
+    const requestId = context.get('requestId');
+    const webhookId = context.req.param('webhookId');
+    if (!validId(webhookId)) return context.json({ error: { code: 'NOT_FOUND' }, requestId }, 404);
+    if (!csrfAllowed(context)) return context.json({ error: { code: 'CSRF_REQUIRED' }, requestId }, 403);
+    const store = new AdminStore(context.env.ADMIN_DB, context.env.now);
+    try {
+      await store.audit({ actorId: context.get('owner').id, action: 'gdpr.retry_requested', targetId: webhookId, result: 'success', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    const path = `/gdpr-tasks/${encodeURIComponent(webhookId)}/retry`;
+    let result: { status: number; body: Record<string, unknown> };
+    try { result = projectSource(path, await internalPost(context.env, path, {}, context.get('traceId'))); }
+    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    try {
+      await store.audit({ actorId: context.get('owner').id, action: result.status === 200 ? 'gdpr.retry_succeeded' : 'gdpr.retry_failed', targetId: webhookId, result: result.status === 200 ? 'success' : 'failure', environment: context.env.ADMIN_ENVIRONMENT ?? 'production', requestId });
+    } catch { return context.json({ error: { code: 'AUDIT_UNAVAILABLE' }, requestId }, 503); }
+    return context.json({ ...result.body, requestId }, result.status as 200 | 404 | 409 | 422 | 503);
   });
   app.get('/diagnostics', requireOwner, (context) => {
     const pagination = sourcePage(context);

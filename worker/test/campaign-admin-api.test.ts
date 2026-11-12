@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { AdminStore } from '../db/admin-store';
 import worker from '../index';
 import migrationSql from '../migrations/0001_admin_auth.sql?raw';
+import { projectSource } from '../source-projection';
 
 const context = { passThroughOnException() {}, waitUntil() {} } as unknown as ExecutionContext;
 
@@ -99,6 +100,23 @@ it('reads global campaigns without exposing SHOPLINE platform IDs', async () => 
   const payload = JSON.stringify(await response.json());
   expect(payload).toContain('platformDiscountState');
   expect(payload).not.toContain('secret-platform-id');
+});
+
+it('projects only validated market override fields for a campaign detail', () => {
+  const result = projectSource('/stores/42/campaigns/campaign-1', {
+    status: 200,
+    body: { data: {
+      id: 'campaign-1', name: '秋季多件折扣', status: 'active', revision: 4,
+      scope: { kind: 'products', productIds: ['product-1'], excludedProductIds: [] },
+      tiers: [{ tierId: 'tier-1', displayOrder: 0, quantity: 2, discountType: 'fixed_price', discountValue: 1250, marketOverrides: [
+        { marketId: 'market-us', marketName: 'United States', mode: 'specified_amount', currencyCode: 'USD', amountMinor: 1200, accessToken: 'never-return-this' },
+      ] }],
+      startsAt: null, endsAt: null, pauseReason: null, updatedAt: '2026-11-03T00:00:00.000Z', platformDiscountState: 'active',
+      shopCurrencyCode: 'USD', accessToken: 'never-return-this',
+    } },
+  });
+  expect(result.body).toMatchObject({ data: { campaign: { shopCurrencyCode: 'USD', tiers: [{ marketOverrides: [{ marketId: 'market-us', amountMinor: 1200 }] }] } } });
+  expect(JSON.stringify(result.body)).not.toContain('never-return-this');
 });
 
 it('projects redacted SHOPLINE diagnostic responses without upstream secrets', async () => {

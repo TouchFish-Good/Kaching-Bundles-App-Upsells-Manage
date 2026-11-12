@@ -71,6 +71,13 @@ it('signs Service Binding paths and strips fields not in the source contract', a
         status: 'installed',
         installedAt: '2026-10-14T01:00:00Z',
         updatedAt: '2026-10-14T02:00:00Z',
+        subscription: {
+          state: 'active',
+          plan: 'ultra',
+          validUntil: 1796256000000,
+          graceUntil: null,
+          lastVerifiedAt: 1793664000000,
+        },
         accessToken: 'never-return-this',
       }],
     },
@@ -81,7 +88,11 @@ it('signs Service Binding paths and strips fields not in the source contract', a
   const response = await loggedInFetch('/admin-api/v1/stores?limit=25');
 
   expect(response.status).toBe(200);
-  expect(JSON.stringify(await response.json())).not.toContain('never-return-this');
+  const payload = await response.json() as { data: { items: Array<{ subscription?: unknown }> } };
+  expect(payload.data.items[0]?.subscription).toEqual({
+    state: 'active', plan: 'ultra', validUntil: 1796256000000, graceUntil: null, lastVerifiedAt: 1793664000000,
+  });
+  expect(JSON.stringify(payload)).not.toContain('never-return-this');
   const internalRequest = fetch.mock.calls[0][0] as Request;
   expect(new URL(internalRequest.url).pathname).toBe('/internal/admin-read/v1/stores');
   expect(internalRequest.headers.get('x-admin-timestamp')).toMatch(/^\d{13}$/);

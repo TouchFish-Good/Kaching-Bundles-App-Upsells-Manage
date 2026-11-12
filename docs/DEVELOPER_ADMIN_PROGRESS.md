@@ -2,6 +2,8 @@
 
 更新日期：2026-11-02。
 
+2026-11-12 首页与活动读取修复：概览页直接读取并展示最多十家已安装商家，包含 handle、安装状态、订阅状态、套餐、到期/宽限时间和最近同步时间；概览指标与商家列表分别加载、报错和刷新。商家 Worker 的店铺内部读取接口只返回订阅状态、套餐和时间字段的白名单摘要，不返回订阅 ID、自动续费标识或会话数据。全局活动列表不再透传指定市场金额的内部对象结构，避免管理后台安全投影拒绝带市场覆盖的活动并返回 503；指定市场详情仍只经详情接口提供。`.overview-section` 的 `max-width: 780px` 已移除。应用 Worker 287 项测试、管理后台 Worker 33 项测试及生产构建已通过；本地 Playwright 已检查 1440px 与 390px 概览布局，后者无横向溢出。
+
 2026-11-03 活动运营与混合诊断增量：商家 Worker 新增应用级 `X-Trace-Id`、30 天 D1 诊断事件和 Owner 内部活动读取/紧急暂停接口；管理后台只经 `MERCHANT_APP` Service Binding 提供活动列表、活动详情、紧急暂停确认和诊断查询。暂停必须携带活动版本，过期版本不会调用 SHOPLINE；SHOPLINE 删除结果不确定时保留活动状态并返回待确认。活动和诊断响应只投影白名单字段，不返回会话或 token。管理后台本地 Playwright 验收已覆盖桌面活动列表、暂停确认框、Trace ID 查询与移动活动列表，未使用真实商家数据。当前 Cloudflare 账户尚未启用 R2（API 返回 `10042`），所以 7 天原始 Worker Logpush 尚未配置；D1 30 天业务诊断正常可用。`scripts/verify-diagnostics-resources.mjs` 只读检查 R2、生命周期和 Logpush 状态。
 
 2026-11-02 Cloudflare 原生迁移：管理后台运行于 Cloudflare Worker，使用独立 Admin D1 数据模型与 `MERCHANT_APP` Service Binding。它只保留一个固定 Owner 账户，不提供 MFA、邀请、多管理员或角色导航。认证使用 PBKDF2 密码记录、HttpOnly 会话、CSRF、共享 D1 登录限流和审计；新建与重置密码写入适配 Workers Free CPU 限额的 `v2/25000`，仍可识别旧 `v1/600000` 记录。商家只读数据经 HMAC 签名和字段白名单投影获得，管理后台不绑定商家 App D1。

@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Copy, RefreshCw, Search, ServerOff 
 import { api, ApiError, type Admin, type ApplicationRequestEvent, type AuditEvent, type ErrorEvent, type List, type Overview, type Store } from './api';
 import { absoluteTime, metricDisplay, sourceMessage, type Metric } from './state.ts';
 import { RefreshButton } from './refresh-button';
+import { storeSubscriptionPresentation } from './store-presentation';
 
 function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -36,12 +37,22 @@ function MetricCell({ title, metric, href }: { title: string; metric: Metric; hr
 
 export function OverviewPage({ admin }: { admin: Admin }) {
   const resource = useResource<Overview>('/overview');
-  return <><PageTitle title="Overview" note="安装、活动和异常概况" action={<div className="page-actions"><span className="scope-pill">{admin.environment}</span><RefreshButton loading={resource.loading} onRefresh={resource.retry} /></div>} />
-    <Status {...resource}>{resource.data && <><section className="metric-band" aria-label="关键指标">
+  const stores = useResource<List<Store>>('/stores?status=installed&limit=10&offset=0');
+  const refresh = () => { resource.retry(); stores.retry(); };
+  return <><PageTitle title="概览" note="安装、订阅、活动和异常概况" action={<div className="page-actions"><span className="scope-pill">{admin.environment}</span><RefreshButton loading={resource.loading || stores.loading} onRefresh={refresh} /></div>} />
+    <Status {...resource}>{resource.data && <section className="metric-band" aria-label="关键指标">
       <MetricCell title="已安装店铺" metric={resource.data.installedStoreCount} href="/stores?status=installed" />
       <MetricCell title="有效活动" metric={resource.data.activeBundleCount} href="/campaigns?status=active" />
       <MetricCell title="最近 24 小时错误" metric={resource.data.errorCount} href="/errors" />
-    </section><section className="overview-section"><div className="section-heading"><h2>需要关注</h2><span>按可用数据源更新</span></div><div className="overview-links"><Link to="/stores"><span>商家安装状态</span><ArrowRight size={17} /></Link><Link to="/campaigns"><span>活动与平台状态</span><ArrowRight size={17} /></Link><Link to="/errors"><span>应用错误记录</span><ArrowRight size={17} /></Link></div></section></>}</Status>
+    </section>}</Status><section className="overview-section"><div className="section-heading"><h2>已安装商家</h2><span>最近更新的 10 家</span></div>
+      {stores.loading ? <div className="loading-panel" role="status"><div className="skeleton-line wide" /><div className="skeleton-line" /></div> : stores.error ? <div className="state-block" role="alert"><ServerOff size={24} /><h2>商家列表加载失败</h2><p>安装和订阅数据暂不可用。</p><button className="button secondary" onClick={stores.retry}><RefreshCw size={15} />重试</button></div> : stores.data?.items.length ? <><div className="table-wrap"><table><thead><tr><th>商家</th><th>安装状态</th><th>订阅状态</th><th>套餐</th><th>到期/宽限时间</th><th>最近同步</th><th className="action-col">查看</th></tr></thead><tbody>{stores.data.items.map((store) => {
+        const subscription = storeSubscriptionPresentation(store.subscription);
+        return <tr key={store.storeId}><td><Link className="table-link" to={`/stores/${encodeURIComponent(store.storeId)}`}>{store.handle}</Link><small className="cell-sub mono">{store.storeId}</small></td><td><span className={`badge ${store.status}`}>{store.status === 'installed' ? '已安装' : '已卸载'}</span></td><td>{subscription.stateLabel}</td><td>{subscription.planLabel}</td><td>{subscription.expiryAt ? <><span>{absoluteTime(new Date(subscription.expiryAt).toISOString())}</span><small className="cell-sub">{subscription.expiryLabel}</small></> : '—'}</td><td>{absoluteTime(store.updatedAt)}</td><td><Link className="row-action" to={`/stores/${encodeURIComponent(store.storeId)}`}>详情 <ArrowRight size={14} /></Link></td></tr>;
+      })}</tbody></table></div><div className="mobile-records">{stores.data.items.map((store) => {
+        const subscription = storeSubscriptionPresentation(store.subscription);
+        return <Link className="mobile-record" key={store.storeId} to={`/stores/${encodeURIComponent(store.storeId)}`}><div><strong>{store.handle}</strong><span className={`badge ${store.status}`}>{store.status === 'installed' ? '已安装' : '已卸载'}</span></div><span>{subscription.stateLabel} · {subscription.planLabel}</span><small>{subscription.expiryAt ? `${subscription.expiryLabel} ${absoluteTime(new Date(subscription.expiryAt).toISOString())}` : '到期时间未核验'}</small></Link>;
+      })}</div><Link className="button secondary" to="/stores?status=installed">查看全部商家 <ArrowRight size={15} /></Link></> : <Empty subject="已安装商家" filtered={false} />}
+    </section>
   </>;
 }
 

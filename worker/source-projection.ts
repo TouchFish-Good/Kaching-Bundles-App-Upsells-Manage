@@ -41,12 +41,22 @@ function textList(value: unknown): string[] {
   return value;
 }
 
-function storeSummary(value: unknown): Record<string, string> {
+function storeSubscription(value: unknown): Record<string, string | number | null> | null {
+  if (value === undefined || value === null) return null;
+  if (!record(value) || !text(value.state) || !['unknown', 'trial', 'active', 'grace', 'review_pending', 'inactive'].includes(value.state) ||
+    !optionalText(value.plan) || !optionalInteger(value.validUntil) || !optionalInteger(value.graceUntil) || !optionalInteger(value.lastVerifiedAt)) throw new Error('INVALID_SOURCE');
+  return { state: value.state, plan: value.plan, validUntil: value.validUntil, graceUntil: value.graceUntil, lastVerifiedAt: value.lastVerifiedAt };
+}
+
+function storeSummary(value: unknown): Record<string, unknown> {
   if (!record(value) || !text(value.storeId) || !text(value.handle) || !text(value.scope) || !text(value.status) ||
     !['installed', 'uninstalled'].includes(value.status) || !text(value.installedAt) || !text(value.updatedAt)) {
     throw new Error('INVALID_SOURCE');
   }
-  return { storeId: value.storeId, handle: value.handle, scope: value.scope, status: value.status, installedAt: value.installedAt, updatedAt: value.updatedAt };
+  return {
+    storeId: value.storeId, handle: value.handle, scope: value.scope, status: value.status, installedAt: value.installedAt, updatedAt: value.updatedAt,
+    subscription: storeSubscription(value.subscription),
+  };
 }
 
 function storeDetail(value: unknown): Record<string, unknown> {

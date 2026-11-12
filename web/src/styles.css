@@ -64,7 +64,6 @@ a { color: inherit; text-decoration: none; }
 .metric strong { color: var(--foreground); font-size: 30px; font-weight: 650; line-height: 36px; }
 .source-note { margin-top: auto; color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
 .source-note.unavailable, .source-note.unsupported, .source-note.stale { color: var(--warning); }
-.overview-section { max-width: 780px; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .section-heading h2, .detail-section h2 { margin: 0; font-size: 15px; font-weight: 600; line-height: 22px; }
 .section-heading span { color: var(--muted-foreground); font-size: 12px; }

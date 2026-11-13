@@ -107,6 +107,8 @@ it('projects only validated market override fields for a campaign detail', () =>
     status: 200,
     body: { data: {
       id: 'campaign-1', name: '秋季多件折扣', status: 'active', revision: 4,
+      discountName: '购物车与结账折扣名',
+      combinesWith: { orderDiscounts: true, productDiscounts: false, shippingDiscounts: true },
       scope: { kind: 'products', productIds: ['product-1'], excludedProductIds: [] },
       tiers: [{ tierId: 'tier-1', displayOrder: 0, quantity: 2, discountType: 'fixed_price', discountValue: 1250, marketOverrides: [
         { marketId: 'market-us', marketName: 'United States', mode: 'specified_amount', currencyCode: 'USD', amountMinor: 1200, accessToken: 'never-return-this' },
@@ -115,7 +117,11 @@ it('projects only validated market override fields for a campaign detail', () =>
       shopCurrencyCode: 'USD', accessToken: 'never-return-this',
     } },
   });
-  expect(result.body).toMatchObject({ data: { campaign: { shopCurrencyCode: 'USD', tiers: [{ marketOverrides: [{ marketId: 'market-us', amountMinor: 1200 }] }] } } });
+  expect(result.body).toMatchObject({ data: { campaign: {
+    discountName: '购物车与结账折扣名',
+    combinesWith: { orderDiscounts: true, productDiscounts: false, shippingDiscounts: true },
+    shopCurrencyCode: 'USD', tiers: [{ marketOverrides: [{ marketId: 'market-us', amountMinor: 1200 }] }],
+  } } });
   expect(JSON.stringify(result.body)).not.toContain('never-return-this');
 });
 

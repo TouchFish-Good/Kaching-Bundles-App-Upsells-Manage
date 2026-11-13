@@ -26,9 +26,10 @@ export type FeedbackComment = { id: string; feedbackId: string; feedbackTitle: s
 export type CampaignStatus = 'draft' | 'active' | 'expired';
 export type Campaign = {
   id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
+  discountName?: string; combinesWith?: { orderDiscounts: boolean; productDiscounts: boolean; shippingDiscounts: boolean };
   storeId?: string; shopHandle?: string; platformDiscountState: 'active' | 'paused' | 'removed' | null;
   scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; collectionIds?: string[]; resolvedProductIds?: string[]; excludedProductIds: string[] };
-  tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string; recommended?: boolean; label?: string; subtitle?: string; tag?: string }[];
+  tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string; recommended?: boolean; label?: string; subtitle?: string; tag?: string; marketOverrides?: { marketId: string; marketName: string | null; mode: 'auto_convert' | 'specified_amount'; currencyCode?: string; amountMinor?: number }[] }[];
 };
 export type DiagnosticOutcome = 'success' | 'failure' | 'uncertain';
 export type Diagnostic = {

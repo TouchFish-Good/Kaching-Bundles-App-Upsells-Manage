@@ -206,11 +206,14 @@ function campaignTier(value: unknown): Record<string, unknown> {
   return result;
 }
 
-function campaign(value: unknown): Record<string, unknown> {
+function campaign(value: unknown, includeDetailFields = false): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.name) || !text(value.status) || !campaignStatuses.includes(value.status) || !Number.isInteger(value.revision) || !Array.isArray(value.tiers) || !optionalText(value.startsAt) || !optionalText(value.endsAt) || !optionalText(value.pauseReason) || !text(value.updatedAt)) throw new Error('INVALID_SOURCE');
   if (value.platformDiscountState !== undefined && !(value.platformDiscountState === null || ['active', 'paused', 'removed'].includes(String(value.platformDiscountState)))) throw new Error('INVALID_SOURCE');
   const status = value.status === 'draft' || value.status === 'active' ? value.status : 'expired';
   if (value.shopCurrencyCode !== undefined && !(value.shopCurrencyCode === null || (text(value.shopCurrencyCode) && /^[A-Z]{3}$/.test(value.shopCurrencyCode)))) throw new Error('INVALID_SOURCE');
+  if (includeDetailFields && (!text(value.discountName) || value.discountName.length > 255 || !record(value.combinesWith) ||
+    typeof value.combinesWith.orderDiscounts !== 'boolean' || typeof value.combinesWith.productDiscounts !== 'boolean' || typeof value.combinesWith.shippingDiscounts !== 'boolean')) throw new Error('INVALID_SOURCE');
+  const combinesWith = includeDetailFields ? value.combinesWith as { orderDiscounts: boolean; productDiscounts: boolean; shippingDiscounts: boolean } : null;
   return {
     id: value.id, name: value.name, status, revision: value.revision,
     scope: campaignScope(value.scope), tiers: value.tiers.map(campaignTier), startsAt: value.startsAt,
@@ -219,6 +222,14 @@ function campaign(value: unknown): Record<string, unknown> {
     ...(value.shopHandle !== undefined ? { shopHandle: text(value.shopHandle) ? value.shopHandle : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
     platformDiscountState: value.platformDiscountState ?? null,
     ...(value.shopCurrencyCode !== undefined ? { shopCurrencyCode: value.shopCurrencyCode } : {}),
+    ...(combinesWith ? {
+      discountName: value.discountName,
+      combinesWith: {
+        orderDiscounts: combinesWith.orderDiscounts,
+        productDiscounts: combinesWith.productDiscounts,
+        shippingDiscounts: combinesWith.shippingDiscounts,
+      },
+    } : {}),
   };
 }
 
@@ -255,16 +266,16 @@ export function projectSource(path: string, result: SourceResult): Projection {
   if (/^\/stores\/[^/]+$/.test(path)) return { status: 200, body: { data: storeDetail(data) } };
   if (/^\/stores\/[^/]+\/campaigns(?:\?.*)?$/.test(path)) {
     if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
-    return { status: 200, body: { data: { total: data.total, items: data.items.map(campaign) } } };
+    return { status: 200, body: { data: { total: data.total, items: data.items.map((item) => campaign(item)) } } };
   }
-  if (/^\/stores\/[^/]+\/campaigns\/[^/]+$/.test(path)) return { status: 200, body: { data: { campaign: campaign(data) } } };
+  if (/^\/stores\/[^/]+\/campaigns\/[^/]+$/.test(path)) return { status: 200, body: { data: { campaign: campaign(data, true) } } };
   if (/^\/stores\/[^/]+\/campaigns\/[^/]+\/pause$/.test(path)) {
     if (!record(data.campaign)) throw new Error('INVALID_SOURCE');
     return { status: 200, body: { data: { campaign: campaign(data.campaign) } } };
   }
   if (path === '/campaigns' || path.startsWith('/campaigns?')) {
     if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');
-    return { status: 200, body: { data: { total: data.total, items: data.items.map(campaign) } } };
+    return { status: 200, body: { data: { total: data.total, items: data.items.map((item) => campaign(item)) } } };
   }
   if (/^\/stores\/[^/]+\/campaigns\/[^/]+\/(activate|platform-delete)$/.test(path)) {
     if (!record(data.campaign)) throw new Error('INVALID_SOURCE');

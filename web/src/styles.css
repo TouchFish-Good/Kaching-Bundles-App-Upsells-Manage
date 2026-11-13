@@ -137,6 +137,12 @@ tbody tr:hover { background: #fafafa; }
 .source-callout.large h2 { font-size: 16px; }
 .source-callout .button { margin-top: 16px; }
 .cell-sub { display: block; margin-top: 3px; color: var(--muted-foreground); }
+.market-amounts { display: flex; min-width: 156px; flex-direction: column; gap: 8px; }
+.market-amount { display: flex; flex-direction: column; gap: 2px; line-height: 17px; }
+.market-amount + .market-amount { border-top: 1px solid var(--border); padding-top: 8px; }
+.market-amount strong { color: var(--foreground); font-weight: 600; }
+.market-amount .mono { color: var(--muted-foreground); font-size: 11px; }
+.campaign-tier-records { display: none; }
 .mobile-records { display: none; }
 .login-wrap { display: flex; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: var(--background); }
 .login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
@@ -224,8 +230,9 @@ tbody tr:hover { background: #fafafa; }
   .account { display: none; }
   .topbar-right { gap: 6px; }
   .content { padding: 20px 16px 40px; }
-  .page-title { margin-bottom: 20px; }
+  .page-title { flex-wrap: wrap; margin-bottom: 20px; }
   .page-title h1 { font-size: 21px; }
+  .page-actions { flex-wrap: wrap; justify-content: flex-start; }
   .metric-band { grid-template-columns: 1fr; gap: 12px; margin-bottom: 24px; }
   .metric { min-height: 108px; padding: 16px; }
   .metric strong { font-size: 27px; line-height: 32px; }
@@ -236,6 +243,14 @@ tbody tr:hover { background: #fafafa; }
   .mobile-record > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .mobile-record strong { font-size: 13px; overflow-wrap: anywhere; }
   .mobile-record small { color: var(--muted-foreground); }
+  .campaign-tier-records { display: flex; }
+  .campaign-tier-record { padding: 14px 16px; }
+  .campaign-tier-record + .campaign-tier-record { border-top: 1px solid var(--border); }
+  .campaign-tier-record > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--foreground); font-size: 12px; }
+  .campaign-tier-record > div span { color: var(--muted-foreground); }
+  .campaign-tier-record dl { display: grid; grid-template-columns: 1fr; gap: 9px; margin: 12px 0 0; }
+  .campaign-tier-record dt { margin-bottom: 3px; color: var(--muted-foreground); font-size: 11px; }
+  .campaign-tier-record dd { margin: 0; color: var(--foreground); font-size: 12px; }
   .detail-grid { grid-template-columns: 1fr; gap: 16px; }
   .toolbar { align-items: stretch; }
   .feedback-toolbar { align-items: stretch; }

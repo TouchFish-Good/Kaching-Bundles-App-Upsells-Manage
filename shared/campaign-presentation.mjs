@@ -31,6 +31,25 @@ export function campaignTierDisplay(tier) {
   return { type, value: tier.discountType === 'percentage' ? `${tier.discountValue / 100}%` : String(tier.discountValue) };
 }
 
+export function campaignCombinationDisplay(combinesWith) {
+  return [
+    { label: '订单折扣', value: combinesWith?.orderDiscounts ? '可叠加' : '不叠加' },
+    { label: '商品折扣', value: combinesWith?.productDiscounts ? '可叠加' : '不叠加' },
+    { label: '运费折扣', value: combinesWith?.shippingDiscounts ? '可叠加' : '不叠加' },
+  ];
+}
+
+export function specifiedMarketAmountDisplays(marketOverrides) {
+  if (!Array.isArray(marketOverrides)) return [];
+  return marketOverrides
+    .filter((override) => override?.mode === 'specified_amount')
+    .map((override) => ({
+      marketName: override.marketName || '未知市场',
+      marketId: override.marketId,
+      value: `${override.currencyCode || '—'} ${override.amountMinor ?? '—'}`,
+    }));
+}
+
 export function formatDiagnosticResponseBody(body) {
   if (typeof body !== 'string') return null;
   try { return JSON.stringify(JSON.parse(body), null, 2); } catch { return null; }

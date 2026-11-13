@@ -39,6 +39,17 @@ export function campaignCombinationDisplay(combinesWith) {
   ];
 }
 
+function formatMarketAmount(amountMinor, currencyCode) {
+  if (!Number.isSafeInteger(amountMinor) || amountMinor < 0 || typeof currencyCode !== 'string' || !/^[A-Z]{3}$/.test(currencyCode)) return String(amountMinor ?? '—');
+  try {
+    const decimals = new Intl.NumberFormat('en', { style: 'currency', currency: currencyCode }).resolvedOptions().maximumFractionDigits;
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 3) return String(amountMinor);
+    if (!decimals) return String(amountMinor);
+    const scale = 10 ** decimals;
+    return `${Math.floor(amountMinor / scale)}.${String(amountMinor % scale).padStart(decimals, '0')}`;
+  } catch { return String(amountMinor); }
+}
+
 export function specifiedMarketAmountDisplays(marketOverrides) {
   if (!Array.isArray(marketOverrides)) return [];
   return marketOverrides
@@ -46,7 +57,7 @@ export function specifiedMarketAmountDisplays(marketOverrides) {
     .map((override) => ({
       marketName: override.marketName || '未知市场',
       marketId: override.marketId,
-      value: `${override.currencyCode || '—'} ${override.amountMinor ?? '—'}`,
+      value: `${override.currencyCode || '—'} ${formatMarketAmount(override.amountMinor, override.currencyCode)}`,
     }));
 }
 

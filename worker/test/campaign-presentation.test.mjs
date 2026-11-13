@@ -42,6 +42,12 @@ test('formats campaign combination choices and specified market amounts for the 
   ]);
   assert.deepEqual(specifiedMarketAmountDisplays([
     { marketId: 'market-us', marketName: '美国市场', mode: 'specified_amount', currencyCode: 'USD', amountMinor: 250 },
+    { marketId: 'market-cn', marketName: '中国市场', mode: 'specified_amount', currencyCode: 'CNY', amountMinor: 8000 },
+    { marketId: 'market-jp', marketName: '日本市场', mode: 'specified_amount', currencyCode: 'JPY', amountMinor: 800 },
     { marketId: 'market-eu', marketName: '欧洲市场', mode: 'auto_convert' },
-  ]), [{ marketName: '美国市场', marketId: 'market-us', value: 'USD 250' }]);
+  ]), [
+    { marketName: '美国市场', marketId: 'market-us', value: 'USD 2.50' },
+    { marketName: '中国市场', marketId: 'market-cn', value: 'CNY 80.00' },
+    { marketName: '日本市场', marketId: 'market-jp', value: 'JPY 800' },
+  ]);
 });

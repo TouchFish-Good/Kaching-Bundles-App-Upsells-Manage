@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import * as presentation from '../../shared/campaign-presentation.mjs';
 
-const { campaignStatus, canPauseCampaign, coverageConflictNotice } = presentation;
+const { campaignStatus, canPauseCampaign, coverageConflictNotice, campaignTierDisplay } = presentation;
 
 test('renders an uncertain active campaign as warning and prevents pausing an already paused campaign', () => {
   assert.deepEqual(campaignStatus({ status: 'active', diagnosticOutcome: 'uncertain' }), { label: '启用', tone: 'warning' });
@@ -24,4 +24,12 @@ test('opens only valid diagnostic response bodies and formats the complete redac
 test('uses a disabled refresh label while current data is loading', () => {
   assert.equal(presentation.refreshLabel(false), '刷新');
   assert.equal(presentation.refreshLabel(true), '刷新中');
+});
+
+test('prefers Chinese campaign tier display fields and formats legacy values as a fallback', () => {
+  assert.deepEqual(campaignTierDisplay({ discountType: 'percentage', discountValue: 1000, discountTypeDisplay: '百分比折扣', discountValueDisplay: '10%' }), { type: '百分比折扣', value: '10%' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'percentage', discountValue: 1234 }), { type: '百分比折扣', value: '12.34%' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'fixed_price', discountValue: 200 }), { type: '每件固定价格', value: '200' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'bundle_fixed_amount', discountValue: 200 }), { type: '整单固定减免', value: '200' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'none' }), { type: '原价', value: '—' });
 });

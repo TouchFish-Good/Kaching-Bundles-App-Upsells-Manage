@@ -28,7 +28,7 @@ export type Campaign = {
   id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
   storeId?: string; shopHandle?: string; platformDiscountState: 'active' | 'paused' | 'removed' | null;
   scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; collectionIds?: string[]; resolvedProductIds?: string[]; excludedProductIds: string[] };
-  tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; recommended?: boolean; label?: string; subtitle?: string; tag?: string }[];
+  tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string; recommended?: boolean; label?: string; subtitle?: string; tag?: string }[];
 };
 export type DiagnosticOutcome = 'success' | 'failure' | 'uncertain';
 export type Diagnostic = {

@@ -39,6 +39,10 @@ export function campaignCombinationDisplay(combinesWith) {
   ];
 }
 
+export function campaignListPath() {
+  return '/campaigns';
+}
+
 function formatMarketAmount(amountMinor, currencyCode) {
   if (!Number.isSafeInteger(amountMinor) || amountMinor < 0 || typeof currencyCode !== 'string' || !/^[A-Z]{3}$/.test(currencyCode)) return String(amountMinor ?? '—');
   try {

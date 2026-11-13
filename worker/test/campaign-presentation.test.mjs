@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import * as presentation from '../../shared/campaign-presentation.mjs';
 
-const { campaignStatus, canPauseCampaign, coverageConflictNotice, campaignTierDisplay, campaignCombinationDisplay, specifiedMarketAmountDisplays } = presentation;
+const { campaignStatus, canPauseCampaign, coverageConflictNotice, campaignTierDisplay, campaignCombinationDisplay, campaignListPath, specifiedMarketAmountDisplays } = presentation;
 
 test('renders an uncertain active campaign as warning and prevents pausing an already paused campaign', () => {
   assert.deepEqual(campaignStatus({ status: 'active', diagnosticOutcome: 'uncertain' }), { label: '启用', tone: 'warning' });
@@ -50,4 +50,8 @@ test('formats campaign combination choices and specified market amounts for the 
     { marketName: '中国市场', marketId: 'market-cn', value: 'CNY 80.00' },
     { marketName: '日本市场', marketId: 'market-jp', value: 'JPY 800' },
   ]);
+});
+
+test('returns from a merchant campaign detail to the unfiltered campaign list', () => {
+  assert.equal(campaignListPath(), '/campaigns');
 });

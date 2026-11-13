@@ -3,6 +3,7 @@ export declare function canPauseCampaign(input: { status: string }): boolean;
 export declare function coverageConflictNotice(conflicts: unknown): string;
 export declare function campaignTierDisplay(tier: { discountType?: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string } | null | undefined): { type: string; value: string };
 export declare function campaignCombinationDisplay(combinesWith: { orderDiscounts?: boolean; productDiscounts?: boolean; shippingDiscounts?: boolean } | null | undefined): { label: string; value: string }[];
+export declare function campaignListPath(): string;
 export declare function specifiedMarketAmountDisplays(marketOverrides: Array<{ marketId: string; marketName: string | null; mode: 'auto_convert' | 'specified_amount'; currencyCode?: string; amountMinor?: number }> | null | undefined): { marketName: string; marketId: string; value: string }[];
 export declare function formatDiagnosticResponseBody(body: unknown): string | null;
 export declare function canViewDiagnosticResponse(body: unknown): boolean;

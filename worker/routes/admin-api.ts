@@ -1,7 +1,7 @@
 import { type Context, Hono, type MiddlewareHandler } from 'hono';
 import { AdminStore } from '../db/admin-store';
 import type { Env } from '../env';
-import { internalDelete, internalGet, internalPatch, internalPost } from '../internal/merchant-client';
+import { internalDelete, internalGet, internalPatch, internalPost, SourceRequestError } from '../internal/merchant-client';
 import { projectSource } from '../source-projection';
 
 export type Owner = {
@@ -97,6 +97,26 @@ function csrfAllowed(context: ApiContext): boolean {
   return context.req.header('x-csrf-token') === context.get('owner').csrfToken;
 }
 
+async function readSource(context: ApiContext, path: string): Promise<{ status: number; body: Record<string, unknown> }> {
+  const startedAt = Date.now();
+  let upstreamStatus: number | null = null;
+  const report = (reason: string) => console.warn(JSON.stringify({
+    event: 'admin_source_read_failed', requestId: context.get('requestId'), traceId: context.get('traceId'),
+    path: path.split('?')[0], reason, upstreamStatus, durationMs: Date.now() - startedAt,
+  }));
+  try {
+    const source = await internalGet(context.env, path, context.get('traceId'));
+    upstreamStatus = source.status;
+    const projected = projectSource(path, source);
+    if (projected.status === 503) report('upstream_http');
+    return projected;
+  } catch (error) {
+    if (error instanceof SourceRequestError) upstreamStatus = error.upstreamStatus;
+    report(error instanceof SourceRequestError ? error.reason : 'invalid_source');
+    return { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } };
+  }
+}
+
 export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: ApiVariables }>): void {
   app.get('/audit-events', requireOwner, async (context) => {
     const limit = page(context.req.query('limit'));
@@ -118,9 +138,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
     const requestId = context.get('requestId');
     if (!environmentAllowed(context)) return context.json({ error: { code: 'INVALID_ENVIRONMENT' }, requestId }, 422);
     const path = makePath(context);
-    let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(path, await internalGet(context.env, path, context.get('traceId'))); }
-    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    const result = await readSource(context, path);
 
     if (sensitive) {
       try {
@@ -176,9 +194,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
   const campaignRead = (path: (context: ApiContext) => string, targetId: (context: ApiContext) => string | null, action: 'campaign.read' | 'diagnostics.read') => async (context: ApiContext) => {
     const requestId = context.get('requestId');
     const sourcePathname = path(context);
-    let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(sourcePathname, await internalGet(context.env, sourcePathname, context.get('traceId'))); }
-    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    const result = await readSource(context, sourcePathname);
     try {
       await new AdminStore(context.env.ADMIN_DB, context.env.now).audit({
         actorId: context.get('owner').id, action, targetId: targetId(context),
@@ -217,9 +233,7 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
       return context.json({ error: { code: 'INVALID_FILTER' }, requestId: context.get('requestId') }, 422);
     }
     const path = sourcePath('/gdpr-tasks', { kind, state, storeId, limit: String(pagination.limit), offset: String(pagination.offset) });
-    let result: { status: number; body: Record<string, unknown> };
-    try { result = projectSource(path, await internalGet(context.env, path, context.get('traceId'))); }
-    catch { result = { status: 503, body: { error: { code: 'SOURCE_UNAVAILABLE' } } }; }
+    const result = await readSource(context, path);
     return context.json({ ...result.body, requestId: context.get('requestId') }, result.status as 200 | 404 | 422 | 503);
   };
   app.get('/gdpr/customer-tasks', requireOwner, gdprTasks('customer_redact'));

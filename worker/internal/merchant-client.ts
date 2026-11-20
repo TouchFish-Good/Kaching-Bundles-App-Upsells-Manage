@@ -22,8 +22,17 @@ function validTraceId(value: string | undefined): value is string {
   return value !== undefined && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+export class SourceRequestError extends Error {
+  constructor(
+    public readonly reason: 'configuration' | 'timeout' | 'transport' | 'invalid_json',
+    public readonly upstreamStatus: number | null,
+    public readonly durationMs: number,
+  ) { super('SOURCE_UNAVAILABLE'); }
+}
+
 async function internalRequest(env: Env, method: 'GET' | 'PATCH' | 'POST' | 'DELETE', signedPath: string, body?: unknown, traceId?: string): Promise<{ status: number; body: unknown }> {
-  if (!env.ADMIN_INTERNAL_SECRET || !signedPath.startsWith('/')) throw new Error('SOURCE_UNAVAILABLE');
+  if (!env.ADMIN_INTERNAL_SECRET || !env.MERCHANT_APP || !signedPath.startsWith('/')) throw new SourceRequestError('configuration', null, 0);
+  const startedAt = Date.now();
   const timestamp = String((env.now ?? Date.now)());
   const nonce = crypto.randomUUID();
   const signedTraceId = validTraceId(traceId) ? traceId : crypto.randomUUID();
@@ -40,11 +49,14 @@ async function internalRequest(env: Env, method: 'GET' | 'PATCH' | 'POST' | 'DEL
     signal: AbortSignal.timeout(5_000),
   });
 
+  let upstreamStatus: number | null = null;
   try {
     const response = await env.MERCHANT_APP.fetch(request);
+    upstreamStatus = response.status;
     return { status: response.status, body: await response.json() };
-  } catch {
-    throw new Error('SOURCE_UNAVAILABLE');
+  } catch (error) {
+    const timeout = request.signal.aborted || (error instanceof Error && error.name === 'TimeoutError');
+    throw new SourceRequestError(timeout ? 'timeout' : upstreamStatus === null ? 'transport' : 'invalid_json', upstreamStatus, Date.now() - startedAt);
   }
 }
 

@@ -170,6 +170,28 @@ it('maps malformed and replay-rejected merchant responses to source unavailable'
   expect((await loggedInFetch('/admin-api/v1/stores')).status).toBe(503);
 });
 
+it.each([
+  { reason: 'timeout', status: null, fetch: async () => { throw new DOMException('token=never-log-this', 'TimeoutError'); } },
+  { reason: 'invalid_json', status: 502, fetch: async () => new Response('token=never-log-this', { status: 502 }) },
+  { reason: 'upstream_http', status: 401, fetch: async () => Response.json({ error: { code: 'UNAUTHORIZED', secret: 'never-log-this' } }, { status: 401 }) },
+  { reason: 'invalid_source', status: 200, fetch: async () => Response.json({ data: { secret: 'never-log-this' } }) },
+])('logs safe source failure context for $reason', async ({ reason, status, fetch }) => {
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+  const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const response = await loggedInFetch('/admin-api/v1/campaigns?query=never-log-this');
+    expect(response.status).toBe(503);
+    const body = await response.json() as { requestId: string };
+    const log = JSON.parse(warnings.mock.calls[0][0] as string);
+    expect(log).toMatchObject({ event: 'admin_source_read_failed', requestId: body.requestId, path: '/campaigns', reason, upstreamStatus: status });
+    expect(log.traceId).toBe(response.headers.get('x-trace-id'));
+    expect(log.durationMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify([warnings.mock.calls, body])).not.toContain('never-log-this');
+    expect(JSON.stringify([warnings.mock.calls, body])).not.toContain('test-admin-internal-secret');
+  } finally { warnings.mockRestore(); }
+});
+
 it('blocks sensitive responses when their audit write fails', async () => {
   env.MERCHANT_APP = { fetch: async () => new Response(JSON.stringify({
     data: { storeId: 'store-42', handle: 'shop', scope: '', status: 'installed', installedAt: '2026-10-14T01:00:00Z', updatedAt: '2026-10-14T02:00:00Z', installations: [] },

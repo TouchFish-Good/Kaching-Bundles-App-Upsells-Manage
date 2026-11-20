@@ -28,7 +28,7 @@ export type Campaign = {
   id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
   discountName?: string; combinesWith?: { orderDiscounts: boolean; productDiscounts: boolean; shippingDiscounts: boolean };
   storeId?: string; shopHandle?: string; platformDiscountState: 'active' | 'paused' | 'removed' | null;
-  scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; collectionIds?: string[]; resolvedProductIds?: string[]; excludedProductIds: string[] };
+  scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; productHandles?: Record<string, string>; collectionIds?: string[]; collectionHandles?: Record<string, string>; resolvedProductIds?: string[]; excludedProductIds: string[] };
   tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string; recommended?: boolean; label?: string; subtitle?: string; tag?: string; marketOverrides?: { marketId: string; marketName: string | null; mode: 'auto_convert' | 'specified_amount'; currencyCode?: string; amountMinor?: number }[] }[];
 };
 export type DiagnosticOutcome = 'success' | 'failure' | 'uncertain';

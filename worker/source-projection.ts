@@ -184,6 +184,16 @@ function campaignScope(value: unknown): Record<string, unknown> {
   if (value.productIds !== undefined) result.productIds = textList(value.productIds);
   if (value.collectionIds !== undefined) result.collectionIds = textList(value.collectionIds);
   if (value.resolvedProductIds !== undefined) result.resolvedProductIds = textList(value.resolvedProductIds);
+  for (const [key, idsKey] of [['productHandles', 'productIds'], ['collectionHandles', 'collectionIds']] as const) {
+    if (value[key] === undefined) continue;
+    if (!record(value[key]) || !Array.isArray(result[idsKey])) throw new Error('INVALID_SOURCE');
+    const ids = new Set(result[idsKey] as string[]);
+    const handles = Object.entries(value[key]).map(([id, handle]) => {
+      if (!ids.has(id) || !text(handle) || handle.length > 255) throw new Error('INVALID_SOURCE');
+      return [id, handle] as const;
+    });
+    result[key] = Object.fromEntries(handles);
+  }
   return result;
 }
 

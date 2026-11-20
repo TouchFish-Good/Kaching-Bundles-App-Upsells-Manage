@@ -26,11 +26,17 @@ export function campaignTierDisplay(tier) {
     bundle_fixed_price: '整单固定价格',
   };
   const type = typeof tier?.discountTypeDisplay === 'string' ? tier.discountTypeDisplay : fallbackLabels[tier?.discountType] ?? tier?.discountType ?? '—';
-  if (typeof tier?.discountValueDisplay === 'string') return { type, value: tier.discountValueDisplay };
   if (tier?.discountType === 'none' || tier?.discountValue === undefined) return { type, value: '—' };
   const amountTypes = new Set(['fixed_price', 'fixed_amount', 'bundle_fixed_price', 'bundle_fixed_amount']);
   if (amountTypes.has(tier.discountType) && Number.isSafeInteger(tier.discountValue)) return { type, value: (tier.discountValue / 100).toFixed(2) };
+  if (typeof tier?.discountValueDisplay === 'string') return { type, value: tier.discountValueDisplay };
   return { type, value: tier.discountType === 'percentage' ? `${tier.discountValue / 100}%` : String(tier.discountValue) };
+}
+
+export function campaignScopeResourceUrl(storeHandle, kind, id, handle) {
+  if (typeof storeHandle !== 'string' || !storeHandle || typeof id !== 'string' || !id || typeof handle !== 'string' || !handle) return null;
+  const resource = kind === 'products' ? 'products' : kind === 'collections' ? 'collections' : null;
+  return resource ? `https://${encodeURIComponent(storeHandle)}.myshopline.com/${resource}/${encodeURIComponent(handle)}` : null;
 }
 
 export function campaignCombinationDisplay(combinesWith) {

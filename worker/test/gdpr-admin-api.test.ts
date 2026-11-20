@@ -131,3 +131,18 @@ it('projects only safe GDPR task fields and audits a CSRF-protected retry', asyn
   expect(audit.items).toContainEqual(expect.objectContaining({ action: 'gdpr.retry_requested', targetId: 'event-1', result: 'success' }));
   expect(audit.items).toContainEqual(expect.objectContaining({ action: 'gdpr.retry_succeeded', targetId: 'event-1', result: 'success' }));
 });
+
+it('accepts a completed merchant deletion task with its retained handle and store ID', async () => {
+  env.MERCHANT_APP = { fetch: async () => Response.json({ data: { total: 1, offset: 0, items: [{
+    webhookId: 'completed-event', kind: 'merchant_redact', storeId: '42', handle: 'alpha', customerDigest: null,
+    state: 'completed', receivedAt: now, deadlineAt: now + 1_000, completedAt: now + 500, attempts: 1, nextAttemptAt: now + 500, lastErrorCode: null,
+  }] } }) } as unknown as Fetcher;
+  const { cookie } = await ownerSession();
+
+  const response = await worker.fetch(request('/admin-api/v1/gdpr/merchant-tasks?limit=25&offset=0', { headers: { Cookie: cookie } }), env, context);
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+    data: { items: [expect.objectContaining({ webhookId: 'completed-event', handle: 'alpha', storeId: '42', state: 'completed' })] },
+  });
+});

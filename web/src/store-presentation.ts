@@ -1,5 +1,11 @@
 import type { StoreSubscription } from './api';
 
+export const storeStatusUpdatedLabel = '安装状态更新时间';
+
+export function storeUrl(handle: string): string {
+  return `https://${encodeURIComponent(handle)}.myshopline.com`;
+}
+
 const stateLabels: Record<StoreSubscription['state'], string> = {
   unknown: '状态未知',
   trial: '试用中',

@@ -7,6 +7,12 @@ const stateLabels = {
   inactive: '未订阅',
 };
 
+export const storeStatusUpdatedLabel = '安装状态更新时间';
+
+export function storeUrl(handle) {
+  return `https://${encodeURIComponent(handle)}.myshopline.com`;
+}
+
 export function storeSubscriptionPresentation(subscription) {
   if (!subscription) return { stateLabel: '未核验', planLabel: '—', expiryAt: null, expiryLabel: '到期时间' };
   const expiryAt = subscription.graceUntil ?? subscription.validUntil;

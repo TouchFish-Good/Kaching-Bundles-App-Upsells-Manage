@@ -111,7 +111,7 @@ function gdprTask(value: unknown): Record<string, unknown> {
     !text(value.webhookId) || !text(value.kind) || !gdprKinds.includes(value.kind) || !text(value.storeId) || !/^\d{1,128}$/.test(value.storeId) ||
     !optionalText(value.handle) || !optionalText(value.customerDigest) || !text(value.state) || !gdprStates.includes(value.state) ||
     !Number.isInteger(value.receivedAt) || !Number.isInteger(value.deadlineAt) || !optionalInteger(value.completedAt) || typeof value.attempts !== 'number' || !Number.isInteger(value.attempts) || value.attempts < 0 ||
-    !Number.isInteger(value.nextAttemptAt) || !optionalText(value.lastErrorCode) || (value.state === 'completed' && value.handle !== null)) throw new Error('INVALID_SOURCE');
+    !Number.isInteger(value.nextAttemptAt) || !optionalText(value.lastErrorCode) || (value.state === 'completed' && value.kind !== 'merchant_redact' && value.handle !== null)) throw new Error('INVALID_SOURCE');
   return {
     webhookId: value.webhookId, kind: value.kind, storeId: value.storeId, handle: value.handle, customerDigest: value.customerDigest,
     state: value.state, receivedAt: value.receivedAt, deadlineAt: value.deadlineAt, completedAt: value.completedAt,

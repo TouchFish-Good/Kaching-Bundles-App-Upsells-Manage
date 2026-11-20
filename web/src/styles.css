@@ -118,9 +118,12 @@ tbody tr:hover { background: #fafafa; }
 .detail-section + .detail-section { margin-top: 16px; }
 .detail-section h2 { margin-bottom: 16px; }
 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 0; }
+.scope-detail-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .detail-grid div { min-width: 0; }
 .detail-grid dt { margin-bottom: 5px; color: var(--muted-foreground); font-size: 11px; }
 .detail-grid dd { margin: 0; color: var(--foreground); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.scope-resource-links { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.scope-resource-links > span { min-width: 0; }
 .copy-value { display: flex; align-items: center; gap: 5px; }
 .copy-button { width: 28px; height: 28px; }
 .copy-feedback { position: absolute; top: -24px; left: -7px; border-radius: 4px; background: var(--foreground); padding: 3px 5px; color: var(--primary-foreground); font-size: 10px; white-space: nowrap; }

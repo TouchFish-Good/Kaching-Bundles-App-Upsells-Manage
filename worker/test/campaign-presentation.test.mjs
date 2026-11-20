@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import * as presentation from '../../shared/campaign-presentation.mjs';
 
@@ -61,4 +62,15 @@ test('formats campaign combination choices and specified market amounts for the 
 
 test('returns from a merchant campaign detail to the unfiltered campaign list', () => {
   assert.equal(campaignListPath(), '/campaigns');
+});
+
+test('renders campaign scope resources as one item per row without separators', () => {
+  const campaigns = readFileSync(new URL('../../web/src/campaigns.tsx', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../../web/src/styles.css', import.meta.url), 'utf8');
+
+  assert.match(campaigns, /<dl className="detail-grid scope-detail-grid">/);
+  assert.match(campaigns, /<span className="scope-resource-links">/);
+  assert.doesNotMatch(campaigns, /index > 0 \? '、' : ''/);
+  assert.match(styles, /\.scope-detail-grid \{ grid-template-columns: repeat\(1, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /\.scope-resource-links \{ display: grid; grid-template-columns: repeat\(1, minmax\(0, 1fr\)\);/);
 });

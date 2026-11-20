@@ -45,13 +45,23 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, public details: unknown = null) { super(code); }
 }
 
+const unauthorizedListeners = new Set<() => void>();
+
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener);
+  return () => unauthorizedListeners.delete(listener);
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/admin-api/v1${path}`, {
     credentials: 'include',
     ...init,
     headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(response.status, body.error?.code || 'REQUEST_FAILED', body);
+  const body = await response.json().catch(() => ({})) as { data?: T; error?: { code?: unknown } };
+  if (!response.ok) {
+    if (response.status === 401) unauthorizedListeners.forEach((listener) => listener());
+    throw new ApiError(response.status, typeof body.error?.code === 'string' ? body.error.code : 'REQUEST_FAILED', body);
+  }
   return body.data as T;
 }

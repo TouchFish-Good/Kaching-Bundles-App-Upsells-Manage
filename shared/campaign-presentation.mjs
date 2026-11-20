@@ -28,6 +28,8 @@ export function campaignTierDisplay(tier) {
   const type = typeof tier?.discountTypeDisplay === 'string' ? tier.discountTypeDisplay : fallbackLabels[tier?.discountType] ?? tier?.discountType ?? '—';
   if (typeof tier?.discountValueDisplay === 'string') return { type, value: tier.discountValueDisplay };
   if (tier?.discountType === 'none' || tier?.discountValue === undefined) return { type, value: '—' };
+  const amountTypes = new Set(['fixed_price', 'fixed_amount', 'bundle_fixed_price', 'bundle_fixed_amount']);
+  if (amountTypes.has(tier.discountType) && Number.isSafeInteger(tier.discountValue)) return { type, value: (tier.discountValue / 100).toFixed(2) };
   return { type, value: tier.discountType === 'percentage' ? `${tier.discountValue / 100}%` : String(tier.discountValue) };
 }
 

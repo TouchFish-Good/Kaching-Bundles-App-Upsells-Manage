@@ -29,8 +29,10 @@ test('uses a disabled refresh label while current data is loading', () => {
 test('prefers Chinese campaign tier display fields and formats legacy values as a fallback', () => {
   assert.deepEqual(campaignTierDisplay({ discountType: 'percentage', discountValue: 1000, discountTypeDisplay: '百分比折扣', discountValueDisplay: '10%' }), { type: '百分比折扣', value: '10%' });
   assert.deepEqual(campaignTierDisplay({ discountType: 'percentage', discountValue: 1234 }), { type: '百分比折扣', value: '12.34%' });
-  assert.deepEqual(campaignTierDisplay({ discountType: 'fixed_price', discountValue: 200 }), { type: '每件固定价格', value: '200' });
-  assert.deepEqual(campaignTierDisplay({ discountType: 'bundle_fixed_amount', discountValue: 200 }), { type: '整单固定减免', value: '200' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'fixed_price', discountValue: 200 }), { type: '每件固定价格', value: '2.00' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'fixed_amount', discountValue: 1 }), { type: '每件固定减免', value: '0.01' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'bundle_fixed_price', discountValue: 12345 }), { type: '整单固定价格', value: '123.45' });
+  assert.deepEqual(campaignTierDisplay({ discountType: 'bundle_fixed_amount', discountValue: 200 }), { type: '整单固定减免', value: '2.00' });
   assert.deepEqual(campaignTierDisplay({ discountType: 'none' }), { type: '原价', value: '—' });
 });
 

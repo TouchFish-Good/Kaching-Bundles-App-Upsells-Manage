@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Activity, ChevronDown, ClipboardList, LayoutDashboard, LogOut, Menu, MessageSquareText, ShieldCheck, Store as StoreIcon, Wrench, X } from 'lucide-react';
-import { api, ApiError, type Admin } from './api';
+import { api, ApiError, onUnauthorized, type Admin } from './api';
 import { FeedbackCommentsPage, FeedbackDetailPage, FeedbackPage } from './feedback';
 import { ApplicationRequestsPage, AuditPage, ErrorsPage, OverviewPage, StoreDetailPage, StoresPage } from './pages';
 import { CampaignDetailPage, CampaignsPage } from './campaigns';
@@ -87,7 +87,18 @@ function Shell({ admin, onLogout }: { admin: Admin; onLogout: () => Promise<void
 export default function App() {
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState(true);
+  useEffect(() => onUnauthorized(() => setAdmin(null)), []);
   useEffect(() => { api<Admin>('/auth/me').then(setAdmin).catch(() => setAdmin(null)).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    if (!admin) return;
+    const refreshSession = () => {
+      if (document.visibilityState !== 'visible') return;
+      api<Admin>('/auth/me').then(setAdmin).catch(() => {});
+    };
+    const interval = window.setInterval(refreshSession, 10 * 60 * 1000);
+    document.addEventListener('visibilitychange', refreshSession);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refreshSession); };
+  }, [admin?.id]);
   if (loading) return <div className="boot-loading" role="status">正在载入管理后台…</div>;
   if (!admin) return <Login onReady={setAdmin} />;
   const logout = async () => { try { await api('/auth/logout', { method: 'POST', headers: { 'x-csrf-token': admin.csrfToken } }); } finally { setAdmin(null); } };

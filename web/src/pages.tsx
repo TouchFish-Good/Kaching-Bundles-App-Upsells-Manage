@@ -4,7 +4,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Copy, RefreshCw, Search, ServerOff 
 import { api, ApiError, type Admin, type ApplicationRequestEvent, type AuditEvent, type ErrorEvent, type List, type Overview, type Store } from './api';
 import { absoluteTime, metricDisplay, sourceMessage, type Metric } from './state.ts';
 import { RefreshButton } from './refresh-button';
-import { storeStatusUpdatedLabel, storeSubscriptionPresentation, storeUrl } from './store-presentation';
+import { storeStatusUpdatedLabel, storeSubscriptionFilters, storeSubscriptionPresentation, storeUrl } from './store-presentation';
 
 function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -72,15 +72,17 @@ export function StoresPage() {
   const [params, setParams] = useSearchParams();
   const query = params.get('query') || '';
   const status = params.get('status') || 'all';
+  const subscriptionStatus = params.get('subscriptionStatus') || 'all';
   const offset = Math.max(0, Number(params.get('offset') || 0) || 0);
   const [draft, setDraft] = useState(query);
   useEffect(() => setDraft(query), [query]);
-  const path = `/stores?${new URLSearchParams({ query, status, offset: String(offset), limit: '25' })}`;
+  const path = `/stores?${new URLSearchParams({ query, status, subscriptionStatus, offset: String(offset), limit: '25' })}`;
   const resource = useResource<List<Store>>(path);
   const update = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key)); if (!('offset' in values)) next.delete('offset'); setParams(next); };
   return <><PageTitle title="Stores" note="按稳定店铺 ID 核查授权与安装周期" action={<RefreshButton loading={resource.loading} onRefresh={resource.retry} />}/>
     <div className="toolbar"><form className="search-box" onSubmit={(event) => { event.preventDefault(); update({ query: draft }); }}><Search size={17} aria-hidden="true" /><label className="sr-only" htmlFor="store-query">搜索店铺</label><input id="store-query" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="店铺名称、域名或 ID" /><button type="submit" aria-label="搜索" title="搜索"><ArrowRight size={17} /></button></form>
-      <label className="select-label">安装状态<select value={status} onChange={(event) => update({ status: event.target.value })}><option value="all">全部</option><option value="installed">已安装</option><option value="uninstalled">已卸载</option></select></label></div>
+      <label className="select-label">安装状态<select value={status} onChange={(event) => update({ status: event.target.value })}><option value="all">全部</option><option value="installed">已安装</option><option value="uninstalled">已卸载</option></select></label>
+      <label className="select-label">订阅状态<select value={subscriptionStatus} onChange={(event) => update({ subscriptionStatus: event.target.value })}>{storeSubscriptionFilters.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
     <Status {...resource}>{resource.data && (resource.data.items.length ? <><div className="table-wrap"><table><thead><tr><th>店铺</th><th>稳定 ID</th><th>安装状态</th><th>订阅状态</th><th>套餐</th><th>到期/宽限时间</th><th>安装时间</th><th>{storeStatusUpdatedLabel}</th><th className="action-col">查看</th></tr></thead><tbody>{resource.data.items.map((store) => {
         const subscription = storeSubscriptionPresentation(store.subscription);
         return <tr key={store.storeId}><td><StoreHandleLink handle={store.handle} /></td><td className="mono">{store.storeId}</td><td><span className={`badge ${store.status}`}>{store.status === 'installed' ? '已安装' : '已卸载'}</span></td><td>{subscription.stateLabel}</td><td>{subscription.planLabel}</td><td>{subscription.expiryAt !== null ? <><span>{absoluteTime(new Date(subscription.expiryAt).toISOString())}</span><small className="cell-sub">{subscription.expiryLabel}</small></> : '—'}</td><td>{absoluteTime(store.installedAt, { seconds: true })}</td><td>{absoluteTime(store.updatedAt, { seconds: true })}</td><td><Link className="row-action" to={`/stores/${encodeURIComponent(store.storeId)}?return=${encodeURIComponent(params.toString())}`}>详情 <ArrowRight size={14} /></Link></td></tr>;
@@ -89,7 +91,7 @@ export function StoresPage() {
         const subscription = storeSubscriptionPresentation(store.subscription);
         return <article className="mobile-record" key={store.storeId}><div><strong><StoreHandleLink handle={store.handle} /></strong><span className={`badge ${store.status}`}>{store.status === 'installed' ? '已安装' : '已卸载'}</span></div><span className="mono">{store.storeId}</span><span>订阅状态：{subscription.stateLabel} · 套餐：{subscription.planLabel}</span><small>{subscription.expiryAt !== null ? `${subscription.expiryLabel} ${absoluteTime(new Date(subscription.expiryAt).toISOString())}` : '到期/宽限时间：—'}</small><small>安装时间 {absoluteTime(store.installedAt, { seconds: true })}</small><small>{storeStatusUpdatedLabel} {absoluteTime(store.updatedAt, { seconds: true })}</small><Link className="row-action" to={`/stores/${encodeURIComponent(store.storeId)}?return=${encodeURIComponent(params.toString())}`}>详情 <ArrowRight size={14} /></Link></article>;
       })}</div>
-      <Pager offset={offset} count={resource.data.items.length} total={resource.data.total || 0} onPage={(value) => update({ offset: String(value) })} /></> : <Empty subject="店铺" filtered={Boolean(query || status !== 'all')} onClear={() => setParams({})} />)}</Status>
+      <Pager offset={offset} count={resource.data.items.length} total={resource.data.total || 0} onPage={(value) => update({ offset: String(value) })} /></> : <Empty subject="店铺" filtered={Boolean(query || status !== 'all' || subscriptionStatus !== 'all')} onClear={() => setParams({})} />)}</Status>
   </>;
 }
 

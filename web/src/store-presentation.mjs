@@ -18,6 +18,15 @@ export function storeUrl(handle) {
   return `https://${encodeURIComponent(handle)}.myshopline.com`;
 }
 
+// Expired includes both trial and paid subscriptions; unverified has no confirmed record.
+export const storeSubscriptionFilters = [
+  { value: 'all', label: '全部' },
+  ...['trial', 'active', 'grace', 'expired', 'cancelled', 'unactive', 'pending', 'scheduled', 'review_pending', 'inactive', 'unknown'].map(value => ({
+    value, label: stateLabels[value],
+  })),
+  { value: 'unverified', label: '未核验' },
+];
+
 export function storeSubscriptionPresentation(subscription) {
   if (!subscription) return { stateLabel: '未核验', planLabel: '—', expiryAt: null, expiryLabel: '到期时间' };
   const expiryAt = subscription.graceUntil ?? subscription.validUntil;

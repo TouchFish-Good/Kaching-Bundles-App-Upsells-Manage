@@ -59,6 +59,27 @@ async function ownerSession(): Promise<{ cookie: string; csrfToken: string }> {
 
 beforeEach(applyMigration);
 
+it('forwards subscription status with search, installation and pagination filters', async () => {
+  const fetch = vi.fn(async () => Response.json({ data: { total: 0, items: [] } }));
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+  env.ADMIN_INTERNAL_SECRET = 'test-admin-internal-secret';
+  const response = await loggedInFetch('/admin-api/v1/stores?subscriptionStatus=expired&status=installed&query=shop&limit=25&offset=25');
+  expect(response.status).toBe(200);
+  const url = new URL((fetch.mock.calls[0] as unknown as [Request])[0].url);
+  expect(url.searchParams.get('subscriptionStatus')).toBe('expired');
+  expect(url.searchParams.get('status')).toBe('installed');
+  expect(url.searchParams.get('query')).toBe('shop');
+  expect(url.searchParams.get('offset')).toBe('25');
+});
+
+it('rejects invalid subscription filters before calling the merchant application', async () => {
+  const fetch = vi.fn();
+  env.MERCHANT_APP = { fetch } as unknown as Fetcher;
+  const response = await loggedInFetch('/admin-api/v1/stores?subscriptionStatus=invalid');
+  expect(response.status).toBe(422);
+  expect(fetch).not.toHaveBeenCalled();
+});
+
 it.each([
   { state: 'active' },
   { state: 'unactive', isTrial: true },

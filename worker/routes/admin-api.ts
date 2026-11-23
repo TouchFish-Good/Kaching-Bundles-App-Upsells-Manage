@@ -161,7 +161,11 @@ export function registerAdminApiRoutes(app: Hono<{ Bindings: Env; Variables: Api
   app.get('/stores', requireOwner, (context) => {
     const pagination = sourcePage(context);
     if (!pagination) return context.json({ error: { code: 'INVALID_PAGINATION' }, requestId: context.get('requestId') }, 422);
-    return source(() => sourcePath('/stores', { query: context.req.query('query'), status: context.req.query('status'), limit: String(pagination.limit), offset: String(pagination.offset) }))(context);
+    const subscriptionStatus = context.req.query('subscriptionStatus');
+    if (subscriptionStatus !== undefined && !['all', 'unknown', 'trial', 'active', 'grace', 'review_pending', 'inactive', 'unactive', 'pending', 'cancelled', 'expired', 'scheduled', 'unverified'].includes(subscriptionStatus)) {
+      return context.json({ error: { code: 'INVALID_SUBSCRIPTION_STATUS' }, requestId: context.get('requestId') }, 422);
+    }
+    return source(() => sourcePath('/stores', { query: context.req.query('query'), status: context.req.query('status'), subscriptionStatus, limit: String(pagination.limit), offset: String(pagination.offset) }))(context);
   });
   app.get('/stores/:storeId', requireOwner, source((context) => `/stores/${encodeURIComponent(context.req.param('storeId') ?? '')}`, true));
   app.get('/stores/:storeId/bundles', requireOwner, (context) => {

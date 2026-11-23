@@ -22,6 +22,26 @@ test('presents a missing subscription as not verified without inventing an expir
   assert.deepEqual(storeSubscriptionPresentation(null), { stateLabel: '未核验', planLabel: '—', expiryAt: null, expiryLabel: '到期时间' });
 });
 
+test('keeps the plan and historical expiry for a trial that is not effective', () => {
+  assert.deepEqual(storeSubscriptionPresentation({
+    state: 'unactive', isTrial: true, plan: 'ultra', validUntil: 1893456000000, graceUntil: null, lastVerifiedAt: 1795400000000,
+  }), { stateLabel: '试用未生效', planLabel: 'Ultra', expiryAt: 1893456000000, expiryLabel: '到期时间' });
+});
+
+test('shows the ended trial as expired while retaining its plan and historical expiry', () => {
+  assert.deepEqual(storeSubscriptionPresentation({
+    state: 'expired', isTrial: true, plan: 'ultra', validUntil: 1795100400000, graceUntil: null, lastVerifiedAt: 1795400000000,
+  }), { stateLabel: '试用已过期', planLabel: 'Ultra', expiryAt: 1795100400000, expiryLabel: '到期时间' });
+});
+
+test('distinguishes ended, cancelled, pending and future subscriptions', () => {
+  for (const [state, label] of [['expired', '已过期'], ['cancelled', '已取消'], ['pending', '待生效'], ['scheduled', '待开始']]) {
+    const subscription = { state, plan: 'ultra', validUntil: 1795100400000, graceUntil: null };
+    assert.equal(storeSubscriptionPresentation(subscription).stateLabel, label);
+    assert.equal(storeSubscriptionPresentation({ ...subscription, isTrial: true }).stateLabel, `试用${label}`);
+  }
+});
+
 test('builds the public SHOPLINE URL from a store handle', () => {
   assert.equal(storeUrl('north-star'), 'https://north-star.myshopline.com');
 });

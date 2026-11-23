@@ -1,5 +1,15 @@
 # Developer Admin Console API 草案（阶段 2，已确认方向）
 
+## 2026-11-23 已实现增量：商家订阅展示
+
+`GET /admin-api/v1/stores` 的 `subscription` 展示摘要支持 `unknown`、`trial`、`active`、`grace`、`review_pending`、`inactive`，并新增 `unactive`、`pending`、`cancelled`、`expired`、`scheduled`。可选布尔字段 `isTrial` 区分试用，旧服务不返回该字段时仍可正常显示。`plan`、`validUntil`、`graceUntil`、`lastVerifiedAt` 的字段和毫秒时间戳格式不变。该摘要用于管理后台展示，不作为商家应用的使用权限依据。
+
+Stores 和 Overview 统一显示未生效、待生效、已取消、已过期和待开始状态；试用对应显示“试用已过期”等文案。已到 `end_at` 的 `unactive` 订阅按已过期展示，原始快照仍保留平台状态；尚未到期或缺少到期时间时继续显示未生效。非生效订阅保留套餐和历史到期时间。只有应用已确认且仍在有效窗口内、并匹配同一订阅的宽限期才显示宽限时间。
+
+应用侧新增独立订阅展示快照。后台列表仅读取本地摘要，不逐个商家调用 Partner API，不持有商家授权令牌。已有商家的展示数据由应用现有五分钟任务分批补查；查询失败保留上次确认的摘要。尚未补查到的商家兼容原有权限摘要，真实接口联调须在两个 Worker 发布后完成。
+
+发布顺序：先更新管理后台的状态兼容和界面；然后为应用 D1 应用 `0024_subscription_display_snapshots.sql`，再发布应用 Worker。单独部署管理后台不能恢复应用此前清空的订阅展示数据。
+
 更新日期：2026-10-14。以下端点均为拟议契约，现有项目尚未实现。浏览器只访问管理服务同源 `/admin-api/v1`；商家服务内部只读接口不对浏览器开放。
 
 ## 通用契约

@@ -41,11 +41,12 @@ function textList(value: unknown): string[] {
   return value;
 }
 
-function storeSubscription(value: unknown): Record<string, string | number | null> | null {
+function storeSubscription(value: unknown): Record<string, string | number | boolean | null> | null {
   if (value === undefined || value === null) return null;
-  if (!record(value) || !text(value.state) || !['unknown', 'trial', 'active', 'grace', 'review_pending', 'inactive'].includes(value.state) ||
+  if (!record(value) || !text(value.state) || !['unknown', 'trial', 'active', 'grace', 'review_pending', 'inactive', 'unactive', 'pending', 'cancelled', 'expired', 'scheduled'].includes(value.state) ||
     !optionalText(value.plan) || !optionalInteger(value.validUntil) || !optionalInteger(value.graceUntil) || !optionalInteger(value.lastVerifiedAt)) throw new Error('INVALID_SOURCE');
-  return { state: value.state, plan: value.plan, validUntil: value.validUntil, graceUntil: value.graceUntil, lastVerifiedAt: value.lastVerifiedAt };
+  if (value.isTrial !== undefined && typeof value.isTrial !== 'boolean') throw new Error('INVALID_SOURCE');
+  return { state: value.state, plan: value.plan, validUntil: value.validUntil, graceUntil: value.graceUntil, lastVerifiedAt: value.lastVerifiedAt, ...(value.isTrial === undefined ? {} : { isTrial: value.isTrial }) };
 }
 
 function storeSummary(value: unknown): Record<string, unknown> {

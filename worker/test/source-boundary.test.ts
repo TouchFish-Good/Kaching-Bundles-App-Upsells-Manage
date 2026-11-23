@@ -59,7 +59,14 @@ async function ownerSession(): Promise<{ cookie: string; csrfToken: string }> {
 
 beforeEach(applyMigration);
 
-it('signs Service Binding paths and strips fields not in the source contract', async () => {
+it.each([
+  { state: 'active' },
+  { state: 'unactive', isTrial: true },
+  { state: 'expired', isTrial: true },
+  { state: 'cancelled', isTrial: false },
+  { state: 'pending', isTrial: false },
+  { state: 'scheduled', isTrial: true },
+])('signs Service Binding paths and preserves a safe $state subscription summary', async ({ state, ...metadata }) => {
   const fetch = vi.fn(async (_request: Request) => new Response(JSON.stringify({
     data: {
       total: 1,
@@ -72,7 +79,8 @@ it('signs Service Binding paths and strips fields not in the source contract', a
         installedAt: '2026-10-14T01:00:00Z',
         updatedAt: '2026-10-14T02:00:00Z',
         subscription: {
-          state: 'active',
+          state,
+          ...metadata,
           plan: 'ultra',
           validUntil: 1796256000000,
           graceUntil: null,
@@ -90,7 +98,7 @@ it('signs Service Binding paths and strips fields not in the source contract', a
   expect(response.status).toBe(200);
   const payload = await response.json() as { data: { items: Array<{ subscription?: unknown }> } };
   expect(payload.data.items[0]?.subscription).toEqual({
-    state: 'active', plan: 'ultra', validUntil: 1796256000000, graceUntil: null, lastVerifiedAt: 1793664000000,
+    state, ...metadata, plan: 'ultra', validUntil: 1796256000000, graceUntil: null, lastVerifiedAt: 1793664000000,
   });
   expect(JSON.stringify(payload)).not.toContain('never-return-this');
   const internalRequest = fetch.mock.calls[0][0] as Request;

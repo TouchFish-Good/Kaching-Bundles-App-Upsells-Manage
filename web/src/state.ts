@@ -10,8 +10,8 @@ export function metricDisplay(metric: Metric): string {
   return new Intl.NumberFormat('zh-CN').format(metric.value);
 }
 
-export function absoluteTime(value: string | null | undefined): string {
+export function absoluteTime(value: string | null | undefined, options: { seconds?: boolean } = {}): string {
   if (!value) return '暂无记录';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '时间未知' : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(date);
+  return Number.isNaN(date.getTime()) ? '时间未知' : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: options.seconds ? 'medium' : 'short', hour12: false }).format(date);
 }

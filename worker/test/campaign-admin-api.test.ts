@@ -181,3 +181,11 @@ it('treats empty diagnostic filter values as absent', async () => {
   expect(forwarded.searchParams.has('traceId')).toBe(false);
   expect(forwarded.searchParams.has('storeId')).toBe(false);
 });
+
+it('preserves activation outcome and replacement identity without leaking platform IDs', () => {
+  const result = projectSource('/stores/42/campaigns/old/activate', { status: 200, body: { data: {
+    outcome: 'activation_pending', campaign: { id: 'local-replacement', name: 'Offer', status: 'active', revision: 1, scope: { kind: 'products', productIds: ['p1'], excludedProductIds: [] }, tiers: [], startsAt: null, endsAt: null, pauseReason: null, updatedAt: '2026-11-24T00:00:00Z', activationPending: true, platformDiscountId: 'hidden' },
+  } } });
+  expect(result.body).toMatchObject({ data: { outcome: 'activation_pending', campaign: { id: 'local-replacement', activationPending: true } } });
+  expect(JSON.stringify(result.body)).not.toContain('hidden');
+});

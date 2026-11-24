@@ -59,6 +59,15 @@ async function ownerSession(): Promise<{ cookie: string; csrfToken: string }> {
 
 beforeEach(applyMigration);
 
+it('preserves validated optional next-period dates for store lists and details', async () => {
+  const subscription = { state: 'active', plan: 'ultra', validUntil: 1796000000000, graceUntil: null, lastVerifiedAt: 1795400000000, nextStartsAt: 1796000000000, nextEndsAt: 1798000000000 };
+  const store = { storeId: '42', handle: 'shop', scope: '', status: 'installed', installedAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', subscription };
+  const { projectSource } = await import('../source-projection');
+  expect(projectSource('/stores', { status: 200, body: { data: { total: 1, items: [store] } } }).body).toMatchObject({ data: { items: [{ subscription }] } });
+  expect(projectSource('/stores/42', { status: 200, body: { data: { ...store, installations: [] } } }).body).toMatchObject({ data: { subscription } });
+  expect(() => projectSource('/stores', { status: 200, body: { data: { total: 1, items: [{ ...store, subscription: { ...subscription, nextStartsAt: 'invalid' } }] } } })).toThrow();
+});
+
 it('forwards subscription status with search, installation and pagination filters', async () => {
   const fetch = vi.fn(async () => Response.json({ data: { total: 0, items: [] } }));
   env.MERCHANT_APP = { fetch } as unknown as Fetcher;

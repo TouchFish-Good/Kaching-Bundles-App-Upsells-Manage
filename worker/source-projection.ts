@@ -45,8 +45,14 @@ function storeSubscription(value: unknown): Record<string, string | number | boo
   if (value === undefined || value === null) return null;
   if (!record(value) || !text(value.state) || !['unknown', 'trial', 'active', 'grace', 'review_pending', 'inactive', 'unactive', 'pending', 'cancelled', 'expired', 'scheduled'].includes(value.state) ||
     !optionalText(value.plan) || !optionalInteger(value.validUntil) || !optionalInteger(value.graceUntil) || !optionalInteger(value.lastVerifiedAt)) throw new Error('INVALID_SOURCE');
+  for (const field of ['nextStartsAt', 'nextEndsAt']) {
+    if (value[field] !== undefined && !optionalInteger(value[field])) throw new Error('INVALID_SOURCE');
+  }
   if (value.isTrial !== undefined && typeof value.isTrial !== 'boolean') throw new Error('INVALID_SOURCE');
-  return { state: value.state, plan: value.plan, validUntil: value.validUntil, graceUntil: value.graceUntil, lastVerifiedAt: value.lastVerifiedAt, ...(value.isTrial === undefined ? {} : { isTrial: value.isTrial }) };
+  return { state: value.state, plan: value.plan, validUntil: value.validUntil, graceUntil: value.graceUntil, lastVerifiedAt: value.lastVerifiedAt, ...(value.isTrial === undefined ? {} : { isTrial: value.isTrial }),
+    ...(value.nextStartsAt === undefined ? {} : { nextStartsAt: value.nextStartsAt as number | null }),
+    ...(value.nextEndsAt === undefined ? {} : { nextEndsAt: value.nextEndsAt as number | null }),
+  };
 }
 
 function storeSummary(value: unknown): Record<string, unknown> {
@@ -219,6 +225,7 @@ function campaignTier(value: unknown): Record<string, unknown> {
 
 function campaign(value: unknown, includeDetailFields = false): Record<string, unknown> {
   if (!record(value) || !text(value.id) || !text(value.name) || !text(value.status) || !campaignStatuses.includes(value.status) || !Number.isInteger(value.revision) || !Array.isArray(value.tiers) || !optionalText(value.startsAt) || !optionalText(value.endsAt) || !optionalText(value.pauseReason) || !text(value.updatedAt)) throw new Error('INVALID_SOURCE');
+  if (value.activationPending !== undefined && typeof value.activationPending !== 'boolean') throw new Error('INVALID_SOURCE');
   if (value.platformDiscountState !== undefined && !(value.platformDiscountState === null || ['active', 'paused', 'removed'].includes(String(value.platformDiscountState)))) throw new Error('INVALID_SOURCE');
   const status = value.status === 'draft' || value.status === 'active' ? value.status : 'expired';
   if (value.shopCurrencyCode !== undefined && !(value.shopCurrencyCode === null || (text(value.shopCurrencyCode) && /^[A-Z]{3}$/.test(value.shopCurrencyCode)))) throw new Error('INVALID_SOURCE');
@@ -232,6 +239,7 @@ function campaign(value: unknown, includeDetailFields = false): Record<string, u
     ...(value.storeId !== undefined ? { storeId: text(value.storeId) ? value.storeId : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
     ...(value.shopHandle !== undefined ? { shopHandle: text(value.shopHandle) ? value.shopHandle : (() => { throw new Error('INVALID_SOURCE'); })() } : {}),
     platformDiscountState: value.platformDiscountState ?? null,
+    ...(value.activationPending === undefined ? {} : { activationPending: value.activationPending }),
     ...(value.shopCurrencyCode !== undefined ? { shopCurrencyCode: value.shopCurrencyCode } : {}),
     ...(combinesWith ? {
       discountName: value.discountName,
@@ -289,8 +297,8 @@ export function projectSource(path: string, result: SourceResult): Projection {
     return { status: 200, body: { data: { total: data.total, items: data.items.map((item) => campaign(item)) } } };
   }
   if (/^\/stores\/[^/]+\/campaigns\/[^/]+\/(activate|platform-delete)$/.test(path)) {
-    if (!record(data.campaign)) throw new Error('INVALID_SOURCE');
-    return { status: 200, body: { data: { campaign: campaign(data.campaign) } } };
+    if (!record(data.campaign) || (data.outcome !== undefined && !['activated', 'activation_pending', 'already_active'].includes(String(data.outcome)))) throw new Error('INVALID_SOURCE');
+    return { status: 200, body: { data: { campaign: campaign(data.campaign), ...(data.outcome === undefined ? {} : { outcome: data.outcome }) } } };
   }
   if (path === '/diagnostics' || path.startsWith('/diagnostics?')) {
     if (!Number.isInteger(data.total) || !Array.isArray(data.items)) throw new Error('INVALID_SOURCE');

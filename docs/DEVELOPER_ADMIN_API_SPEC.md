@@ -1,5 +1,17 @@
 # Developer Admin Console API 草案（阶段 2，已确认方向）
 
+## 2026-11-24 已实现增量：活动启动与订阅周期
+
+`GET /admin-api/v1/stores` 与 `GET /admin-api/v1/stores/{storeId}` 使用同一个订阅展示摘要。`subscription` 新增可选字段 `nextStartsAt`、`nextEndsAt`，均为毫秒时间戳或 `null`。数据来自应用已保存的 `next_display_from`、`next_display_until`，仅展示尚未开始的下一期；缺少记录时不根据当前到期时间或自动续费标志推算。下一期结束时间必须晚于下一期开始时间。此读取不修改商家订阅、权限或生效窗口。
+
+Overview、Stores 的桌面列表和手机卡片显示下一期开始时间，无数据时显示 `—`。店铺详情显示当前订阅状态、套餐、当前订阅结束时间、宽限结束时间及下一期开始/结束时间。新增周期时间精确到秒。
+
+活动与排障列表按商家 handle（忽略大小写）、店铺 ID、活动更新时间降序和活动 ID 排序，在数据库分页前完成。同一商家的活动集中排列，商家内部优先展示最近更新的活动。列表及详情中的 handle 均可在新标签页打开 `https://{handle}.myshopline.com/`。
+
+已失效活动详情开放“启动”。`POST /admin-api/v1/campaigns/{campaignId}/activate` 继续校验管理员权限、CSRF、店铺归属与 `expectedRevision`；应用内部接口复用商家应用现有启动流程，包括范围冲突判断、过期活动替换、平台发布及结果核验。过期活动启动可能产生新的独立活动 ID，成功响应包含 `{ campaign, outcome }`，`outcome` 为 `activated`、`activation_pending` 或 `already_active`。页面按返回 ID 跳转，不能假定启动后仍使用原活动 ID。
+
+活动摘要新增可选布尔字段 `activationPending`。平台已接受但尚未确认的活动显示“待确认”，隐藏再次启动入口；详情读取复用应用现有核验逻辑。页面自动查询最多一分钟，查询仅用于确认结果，不重发创建请求；仍未确认时保留待确认状态并提示刷新或查看诊断。旧服务缺少新字段时仍兼容。金额展示和商家应用启动的业务规则不变；本次无需新增数据库迁移，需要同时发布应用与管理后台 Worker。
+
 ## 2026-11-23 已实现增量：商家订阅展示
 
 `GET /admin-api/v1/stores` 的 `subscription` 展示摘要支持 `unknown`、`trial`、`active`、`grace`、`review_pending`、`inactive`，并新增 `unactive`、`pending`、`cancelled`、`expired`、`scheduled`。可选布尔字段 `isTrial` 区分试用，旧服务不返回该字段时仍可正常显示。`plan`、`validUntil`、`graceUntil`、`lastVerifiedAt` 的字段和毫秒时间戳格式不变。该摘要用于管理后台展示，不作为商家应用的使用权限依据。

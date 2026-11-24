@@ -2,7 +2,7 @@ import type { Metric } from './state.ts';
 
 export type Role = 'Owner';
 export type Admin = { id: string; email: string; role: Role; csrfToken: string; environment: string };
-export type StoreSubscription = { state: 'unknown' | 'trial' | 'active' | 'grace' | 'review_pending' | 'inactive' | 'unactive' | 'pending' | 'cancelled' | 'expired' | 'scheduled'; isTrial?: boolean; plan: string | null; validUntil: number | null; graceUntil: number | null; lastVerifiedAt: number | null };
+export type StoreSubscription = { state: 'unknown' | 'trial' | 'active' | 'grace' | 'review_pending' | 'inactive' | 'unactive' | 'pending' | 'cancelled' | 'expired' | 'scheduled'; isTrial?: boolean; nextStartsAt?: number | null; nextEndsAt?: number | null; plan: string | null; validUntil: number | null; graceUntil: number | null; lastVerifiedAt: number | null };
 export type Store = { storeId: string; handle: string; scope: string; status: string; installedAt: string; updatedAt: string; subscription: StoreSubscription | null; installations?: { installedAt: string; uninstalledAt: string | null }[] };
 export type ErrorEvent = { id: number; storeId: string | null; handle?: string | null; kind: string; severity: string; code: string; traceId: string | null; source?: 'worker' | 'browser'; operation?: string; route?: string | null; method?: string | null; httpStatus?: number | null; message?: string | null; relatedTraceId?: string | null; occurredAt: string };
 export type ApplicationRequestEvent = { id: string; traceId: string; storeId: string | null; handle: string | null; route: string; method: string; httpStatus: number; durationMs: number; outcome: 'success' | 'client_error' | 'server_error'; occurredAt: string };
@@ -27,7 +27,7 @@ export type CampaignStatus = 'draft' | 'active' | 'expired';
 export type Campaign = {
   id: string; name: string; status: CampaignStatus; revision: number; startsAt: string | null; endsAt: string | null; pauseReason: string | null; updatedAt: string;
   discountName?: string; combinesWith?: { orderDiscounts: boolean; productDiscounts: boolean; shippingDiscounts: boolean };
-  storeId?: string; shopHandle?: string; platformDiscountState: 'active' | 'paused' | 'removed' | null;
+  storeId?: string; shopHandle?: string; activationPending?: boolean; platformDiscountState: 'active' | 'paused' | 'removed' | null;
   scope: { kind: 'all' | 'products' | 'collections'; productIds?: string[]; productHandles?: Record<string, string>; collectionIds?: string[]; collectionHandles?: Record<string, string>; resolvedProductIds?: string[]; excludedProductIds: string[] };
   tiers: { tierId: string; displayOrder: number; quantity: number; discountType: string; discountValue?: number; discountTypeDisplay?: string; discountValueDisplay?: string; recommended?: boolean; label?: string; subtitle?: string; tag?: string; marketOverrides?: { marketId: string; marketName: string | null; mode: 'auto_convert' | 'specified_amount'; currencyCode?: string; amountMinor?: number }[] }[];
 };
